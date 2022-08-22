@@ -1,19 +1,21 @@
 # __author__ = 'ChienHung Chen in Academia Sinica IIS'
 
 import argparse
-import cv2
 import itertools
 import json
-import matplotlib
-import mmcv
-import numpy as np
 import os
 import pickle
 import platform
-import pycocotools.mask as maskUtils
 import xml.etree.ElementTree as ET
+from tkinter import (END, Button, Checkbutton, E, Entry, IntVar, Label,
+                     Listbox, Menu, N, S, Scrollbar, StringVar, Tk, W, ttk)
+
+import cv2
+import matplotlib
+import mmcv
+import numpy as np
+import pycocotools.mask as maskUtils
 from PIL import Image, ImageTk
-from tkinter import (END, Button, Checkbutton, E, Entry, IntVar, Label, Listbox, Menu, N, S, Scrollbar, StringVar, Tk, W, ttk)
 from tqdm import trange
 
 matplotlib.use('TkAgg')
@@ -23,9 +25,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='DetVisGUI')
 
     parser.add_argument('config', help='config file path')
-    parser.add_argument('--det_file',
-                        default='',
-                        help='detection results file path')
+    parser.add_argument(
+        '--det_file', default='', help='detection results file path')
 
     parser.add_argument(
         '--stage',
@@ -58,21 +59,24 @@ class COCO_dataset:
     def __init__(self, cfg, args):
         self.dataset = 'COCO'
 
-        wrapped_ds = True if 'dataset' in getattr(
-            cfg.data, args.stage) else False
+        wrapped_ds = True if 'dataset' in getattr(cfg.data,
+                                                  args.stage) else False
 
-        self.img_root = getattr(cfg.data, args.stage).img_prefix if not wrapped_ds else getattr(
-            cfg.data, args.stage).dataset.img_prefix
-        self.anno_root = getattr(cfg.data, args.stage).ann_file if not wrapped_ds else getattr(
-            cfg.data, args.stage).dataset.ann_file
+        self.img_root = getattr(
+            cfg.data, args.stage).img_prefix if not wrapped_ds else getattr(
+                cfg.data, args.stage).dataset.img_prefix
+        self.anno_root = getattr(
+            cfg.data, args.stage).ann_file if not wrapped_ds else getattr(
+                cfg.data, args.stage).dataset.ann_file
 
         self.det_file = args.det_file
         self.has_anno = not args.no_gt
         self.mask = False
 
         # according json to get category, image list, and annotations.
-        self.category, self.img_list, self.total_annotations, self.cat2idx, self.img2idx = self.parse_json(
-            self.anno_root, self.has_anno)
+        self.category, self.img_list, self.total_annotations,
+        self.cat2idx, self.img2idx = self.parse_json(self.anno_root,
+                                                     self.has_anno)
         self.aug_category = aug_category(self.category)
 
         self.results = self.get_det_results() if self.det_file != '' else None
@@ -179,8 +183,9 @@ class COCO_dataset:
 
                 if 'segmentation' in json_results[0]:
                     self.mask = True
-                    det_results = [[[np.empty((0, 5)), []] for _ in range(len(self.img_list))] for _ in
-                                   range(len(self.cat2idx))]
+                    det_results = [[[np.empty((0, 5)), []]
+                                    for _ in range(len(self.img_list))]
+                                   for _ in range(len(self.cat2idx))]
 
                     for res in json_results:
                         img_idx = self.img2idx[res['image_id']]
@@ -189,14 +194,15 @@ class COCO_dataset:
 
                         det_results[cat_idx][img_idx][0] = np.concatenate(
                             (det_results[cat_idx][img_idx][0],
-                             np.asarray([x, y, x + w, y + h, res['score']]).reshape(1, -1))
-                        )
+                             np.asarray([x, y, x + w, y + h,
+                                         res['score']]).reshape(1, -1)))
                         det_results[cat_idx][img_idx][1].append(
                             res['segmentation'])
 
                 elif 'bbox' in json_results[0]:
-                    det_results = [[np.empty((0, 5)) for _ in range(len(self.img_list))] for _ in
-                                   range(len(self.cat2idx))]
+                    det_results = [[
+                        np.empty((0, 5)) for _ in range(len(self.img_list))
+                    ] for _ in range(len(self.cat2idx))]
 
                     for res in json_results:
                         img_idx = self.img2idx[res['image_id']]
@@ -205,8 +211,8 @@ class COCO_dataset:
 
                         det_results[cat_idx][img_idx] = np.concatenate(
                             (det_results[cat_idx][img_idx],
-                             np.asarray([x, y, x + w, y + h, res['score']]).reshape(1, -1))
-                        )
+                             np.asarray([x, y, x + w, y + h,
+                                         res['score']]).reshape(1, -1)))
 
                 det_results = np.asarray(det_results, dtype=object)
 
@@ -464,7 +470,10 @@ class vis_tool:
             width=10,
             textvariable=StringVar(self.window, value=str(self.iou_threshold)))
         self.iou_th_button = Button(
-            self.window, text='Enter', height=1, command=self.change_iou_threshold)
+            self.window,
+            text='Enter',
+            height=1,
+            command=self.change_iou_threshold)
 
         self.find_label = Label(
             self.window,
@@ -484,7 +493,7 @@ class vis_tool:
 
         self.listBox_img_idx = 0
 
-        # ====== ohter attribute ======
+        # ====== other attribute ======
         self.img_name = ''
         self.show_img = None
 
@@ -529,7 +538,7 @@ class vis_tool:
             self.button_clicked = True
 
         except ValueError:
-            self.window.title("Please enter a number as IoU threshold.")
+            self.window.title('Please enter a number as IoU threshold.')
 
     # draw groundtruth
     def draw_gt_boxes(self, img, objs):
@@ -593,7 +602,6 @@ class vis_tool:
 
             # sort by confidence
             sorted_ind = np.argsort(-confidence)
-            sorted_scores = np.sort(-confidence)
             BB = BB[sorted_ind, :]
 
             # for returning original order
@@ -618,8 +626,8 @@ class vis_tool:
 
                     # union
                     uni = ((bb[2] - bb[0] + 1.) * (bb[3] - bb[1] + 1.) +
-                           (BBGT[:, 2] - BBGT[:, 0] + 1.) * (BBGT[:, 3] - BBGT[:, 1] + 1.) -
-                           inters)
+                           (BBGT[:, 2] - BBGT[:, 0] + 1.) *
+                           (BBGT[:, 3] - BBGT[:, 1] + 1.) - inters)
 
                     overlaps = inters / uni
                     ovmax = np.max(overlaps)  # max overlaps with all gt
@@ -778,7 +786,8 @@ class vis_tool:
 
         name = self.listBox_img.get(self.listBox_img_idx)
         self.window.title('Title : ' + '   ' + self.args.title +
-                          ' DATASET : ' + self.data_info.dataset + '   ' + name)
+                          ' DATASET : ' + self.data_info.dataset + '   ' +
+                          name)
 
         img = self.data_info.get_img_by_name(name)
         self.img_width, self.img_height = img.width, img.height
@@ -864,8 +873,8 @@ class vis_tool:
                                 cv2.putText(img, text, (xmin, int(ymax + 15)),
                                             font, 0.5, (255, 255, 255), 1)
 
-                        cv2.rectangle(img, (xmin, ymin),
-                                      (xmax, ymax), color, 2)
+                        cv2.rectangle(img, (xmin, ymin), (xmax, ymax), color,
+                                      2)
 
                         return img
                     else:
@@ -951,8 +960,8 @@ class vis_tool:
                                 cv2.putText(img, text, (xmin, int(ymax + 15)),
                                             font, 0.5, (255, 255, 255), 1)
 
-                        cv2.rectangle(img, (xmin, ymin), (xmax, ymax),
-                                      color, 2)
+                        cv2.rectangle(img, (xmin, ymin), (xmax, ymax), color,
+                                      2)
 
                         return img
                     else:
@@ -1057,22 +1066,24 @@ class vis_tool:
                 if score >= self.threshold:
                     if not self.data_info.has_anno:
                         self.listBox_obj.insert('end',
-                                                category + " : " + str(score))
+                                                category + ' : ' + str(score))
                     elif self.iou[idx][obj_idx] > self.iou_threshold:
-                        s = "{:15} : {:5.3} ( {:<6.3})".format(
-                            category, score, abs(round(self.iou[idx][obj_idx], 2)))
+                        s = '{:15} : {:5.3} ( {:<6.3})'.format(
+                            category, score,
+                            abs(round(self.iou[idx][obj_idx], 2)))
                         self.listBox_obj.insert('end', s)
-                        self.listBox_obj.itemconfig(num, fg="green")
+                        self.listBox_obj.itemconfig(num, fg='green')
                     elif isinstance(self.iou[idx][obj_idx], list):
-                        s = "{:15} : {:5.3} ( {:<6.3})".format(
+                        s = '{:15} : {:5.3} ( {:<6.3})'.format(
                             category, score, 0.0)
                         self.listBox_obj.insert('end', s)
-                        self.listBox_obj.itemconfig(num, fg="red")
+                        self.listBox_obj.itemconfig(num, fg='red')
                     else:
-                        s = "{:15} : {:5.3} ( {:<6.3})".format(
-                            category, score, abs(round(self.iou[idx][obj_idx], 2)))
+                        s = '{:15} : {:5.3} ( {:<6.3})'.format(
+                            category, score,
+                            abs(round(self.iou[idx][obj_idx], 2)))
                         self.listBox_obj.insert('end', s)
-                        self.listBox_obj.itemconfig(num, fg="red")
+                        self.listBox_obj.itemconfig(num, fg='red')
 
                     num += 1
 
@@ -1133,8 +1144,9 @@ class vis_tool:
                         (1, 0))
                     img = self.draw_all_det_boxes_masks(img, dets)
 
-            cv2.imwrite(os.path.join(self.output, name),
-                        cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            cv2.imwrite(
+                os.path.join(self.output, name),
+                cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
     def eventhandler(self, event):
         entry_list = [self.find_entry, self.th_entry, self.iou_th_entry]
@@ -1210,8 +1222,8 @@ class vis_tool:
                 self.find_name))
 
     def run(self):
-        self.window.title('Title : ' + '   ' + self.args.title +
-                          'DATASET : ' + self.data_info.dataset)
+        self.window.title('Title : ' + '   ' + self.args.title + 'DATASET : ' +
+                          self.data_info.dataset)
         self.window.geometry('1280x800+350+100')
 
         # self.menubar.add_command(label='QUIT', command=self.window.quit)
@@ -1261,7 +1273,7 @@ class vis_tool:
                 padx=3,
                 pady=3,
                 columnspan=2)
-        if self.data_info.has_anno != False:
+        if not self.data_info.has_anno:
             # show gt
             self.checkbn_gt.grid(
                 row=layer1 + 40,
@@ -1309,7 +1321,7 @@ class vis_tool:
             self.th_button.grid(
                 row=layer2 + 40, column=9, sticky=E + W, columnspan=3)
 
-            if self.data_info.has_anno != False:
+            if not self.data_info.has_anno:
                 self.iou_th_label.grid(
                     row=layer2 + 50, column=0, sticky=E + W, columnspan=6)
                 self.iou_th_entry.grid(
@@ -1320,7 +1332,7 @@ class vis_tool:
             self.listBox_obj_label1.grid(
                 row=layer2 + 60, column=0, sticky=E + W, pady=3, columnspan=12)
 
-            if self.data_info.has_anno != False:
+            if not self.data_info.has_anno:
                 self.listBox_obj_label2.grid(
                     row=layer2 + 70,
                     column=0,

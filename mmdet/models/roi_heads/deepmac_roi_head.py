@@ -5,10 +5,24 @@ from mmdet.core import bbox2roi
 from ..builder import HEADS
 from .standard_roi_head import StandardRoIHead
 
+
 @HEADS.register_module()
 class DeepMACRoIHead(StandardRoIHead):
-    def __init__(self, allowed_mask_classes, bbox_roi_extractor=None, bbox_head=None, mask_roi_extractor=None, mask_head=None, shared_head=None, train_cfg=None, test_cfg=None, pretrained=None, init_cfg=None):
-        super().__init__(bbox_roi_extractor, bbox_head, mask_roi_extractor, mask_head, shared_head, train_cfg, test_cfg, pretrained, init_cfg)
+
+    def __init__(self,
+                 allowed_mask_classes,
+                 bbox_roi_extractor=None,
+                 bbox_head=None,
+                 mask_roi_extractor=None,
+                 mask_head=None,
+                 shared_head=None,
+                 train_cfg=None,
+                 test_cfg=None,
+                 pretrained=None,
+                 init_cfg=None):
+        super().__init__(bbox_roi_extractor, bbox_head, mask_roi_extractor,
+                         mask_head, shared_head, train_cfg, test_cfg,
+                         pretrained, init_cfg)
         self.allowed_mask_classes = allowed_mask_classes
 
     def forward_train(self,
@@ -76,21 +90,26 @@ class DeepMACRoIHead(StandardRoIHead):
 
         return losses
 
-    def _mask_forward_train(self, x, sampling_results, bbox_feats, gt_masks, img_metas):
+    def _mask_forward_train(self, x, sampling_results, bbox_feats, gt_masks,
+                            img_metas):
         # TODO: keep allowed mask classes only
 
-
         # only get roi from ground-truth boxes
-        gt_rois = bbox2roi([res.pos_bboxes[res.pos_assigned_gt_inds.unique()] for res in sampling_results])
-        
+        gt_rois = bbox2roi([
+            res.pos_bboxes[res.pos_assigned_gt_inds.unique()]
+            for res in sampling_results
+        ])
+
         # fetch gt labels from sampling
-        gt_labels = torch.cat([res.pos_gt_labels[res.pos_assigned_gt_inds.unique()]  for res in sampling_results])
+        gt_labels = torch.cat([
+            res.pos_gt_labels[res.pos_assigned_gt_inds.unique()]
+            for res in sampling_results
+        ])
 
         # empty keep handling
         if isinstance(self.allowed_mask_classes, list):
             self.allowed_mask_classes = torch.as_tensor(
-              self.allowed_mask_classes,
-              device=gt_labels.device)
+                self.allowed_mask_classes, device=gt_labels.device)
         match_ids = gt_labels[:, None] == self.allowed_mask_classes[None, :]
         match_ids = torch.any(match_ids, 1)
         keep = torch.where(match_ids)[0]
@@ -101,7 +120,7 @@ class DeepMACRoIHead(StandardRoIHead):
 
         # forward Ground-Truth RoIs
         mask_results = self._mask_forward(x, gt_rois)
-        
+
         mask_targets = self.mask_head.get_targets(sampling_results, gt_masks,
                                                   self.train_cfg)
         loss_mask = self.mask_head.loss(mask_results['mask_pred'][keep],
