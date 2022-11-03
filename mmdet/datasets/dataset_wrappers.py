@@ -491,12 +491,16 @@ class ImageTilingDataset:
                  overlap_ratio=0.2,
                  iou_threshold=0.45,
                  max_per_img=200,
-                 filter_empty_gt=True):
+                 filter_empty_gt=True,
+                 test_mode=False,
+                 **kwargs):
 
         self.CLASSES = dataset.CLASSES
         self.tmp_dir = tempfile.TemporaryDirectory()
+        self.dataset = dataset
         self.tile_dataset = Tile(
-            dataset,
+            self.dataset,
+            pipeline,
             tmp_dir=self.tmp_dir,
             tile_size=tile_size,
             overlap=overlap_ratio,
@@ -506,6 +510,9 @@ class ImageTilingDataset:
             filter_empty_gt=False if dataset.test_mode else filter_empty_gt)
         self.flag = np.zeros(len(self), dtype=np.uint8)
         self.pipeline = Compose(pipeline)
+        self.test_mode = test_mode
+        self.num_samples = len(dataset)  # number of original samples
+        self.merged_results = None
 
     def __len__(self) -> int:
         return len(self.tile_dataset)
@@ -530,8 +537,13 @@ class ImageTilingDataset:
         Returns:
             dict[str, float]: evaluation metric.
         """
-        return self.tile_dataset.evaluate(results, **kwargs)
+        self.merged_results = self.tile_dataset.merge(results)
+        return self.dataset.evaluate(self.merged_results, **kwargs)
+
+    def merge(self, results):
+        self.merged_results = self.tile_dataset.merge(results)
+        return self.merged_results
 
     def __del__(self):
-        # BUG: multi-instance training
-        self.tmp_dir.cleanup()
+        if getattr(self, 'tmp_dir', False):
+            self.tmp_dir.cleanup()
