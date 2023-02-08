@@ -126,7 +126,7 @@ class ConcatDataset(_ConcatDataset):
 
                 results_per_dataset = results[start_idx:end_idx]
                 print_log(
-                    f'\nEvaluateing {dataset.ann_file} with '
+                    f'\nEvaluating {dataset.ann_file} with '
                     f'{len(results_per_dataset)} images now',
                     logger=logger)
 
@@ -547,3 +547,9 @@ class ImageTilingDataset:
     def __del__(self):
         if getattr(self, 'tmp_dir', False):
             self.tmp_dir.cleanup()
+
+    def positive_tiles(self):
+        return self.tile_dataset.positive_tiles
+
+    def negative_tiels(self):
+        return self.tile_dataset.negative_tiles

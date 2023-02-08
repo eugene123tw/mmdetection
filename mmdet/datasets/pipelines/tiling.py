@@ -88,6 +88,8 @@ class Tile:
         self.tmp_folder = tmp_dir.name
         self.nproc = nproc
         self.img2fp32 = False
+        self.positive_tiles = 0
+        self.negative_tiles = 0
         for p in pipeline:
             if p.type == 'PhotoMetricDistortion':
                 self.img2fp32 = True
@@ -146,6 +148,7 @@ class Tile:
         result['dataset_idx'] = dataset_idx
         result['original_shape_'] = result['img_shape']
         result['uuid'] = str(uuid.uuid4())
+        self.positive_tiles += 1
         return result
 
     def gen_tiles_single_img(self, result: Dict, dataset_idx: int) -> List[Dict]:
@@ -192,6 +195,12 @@ class Tile:
             # filter empty ground truth
             if self.filter_empty_gt and len(tile['gt_labels']) == 0:
                 continue
+
+            if len(tile['gt_labels']) > 0:
+                self.positive_tiles += 1
+            else:
+                self.negative_tiles += 1            
+
             tile_list.append(tile)
         return tile_list
 

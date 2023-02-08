@@ -12,8 +12,10 @@ tile_cfg = dict(
     filter_empty_gt=False
 )
 
-img_norm_cfg = dict(
-    mean=(103.53, 116.28, 123.675), std=(1.0, 1.0, 1.0), to_rgb=False)
+# img_norm_cfg = dict(
+#     mean=(103.53, 116.28, 123.675), std=(1.0, 1.0, 1.0), to_rgb=False)
+
+img_norm_cfg = dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 
 train_pipeline = [
     dict(type="Resize", img_scale=img_size, keep_ratio=False),
@@ -44,7 +46,7 @@ train_dataset = dict(
     type="ImageTilingDataset",
     dataset=dict(
         type=dataset_type,
-        ann_file=data_root + "annotations/instances_train_shorten_to_10.json",
+        ann_file=data_root + "annotations/instances_train.json",
         img_prefix=data_root + "images/train",
         pipeline=[
             dict(type="LoadImageFromFile"),
