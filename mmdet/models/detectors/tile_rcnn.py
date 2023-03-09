@@ -1,12 +1,15 @@
 from ..builder import DETECTORS
 from .two_stage import TwoStageDetector
+from mmcv.runner import auto_fp16
 
 import torch
 from torch import nn
 
-class SubNet(torch.nn.Module):
+
+class TileClassifier(torch.nn.Module):
     def __init__(self):
         super().__init__()
+        self.fp16_enabled = False
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
             nn.BatchNorm2d(64),
@@ -21,16 +24,20 @@ class SubNet(torch.nn.Module):
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
         )
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
-        self.classifier = nn.Sequential(
-            nn.Linear(256 * 6 * 6, 256),
-            nn.ReLU(inplace=True),
-            nn.Linear(256, 256),
-            nn.ReLU(inplace=True),
-            nn.Linear(256, 1)
+        self.avgpool = torch.nn.AdaptiveAvgPool2d((6, 6))
+        self.classifier = torch.nn.Sequential(
+            torch.nn.Linear(256 * 6 * 6, 256),
+            torch.nn.ReLU(inplace=True),
+            torch.nn.Linear(256, 256),
+            torch.nn.ReLU(inplace=True),
+            torch.nn.Linear(256, 1)
         )
-        self.loss_fun = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([8.0]))
 
+        # TODO: FIND A WAY TO INJECT POS WEIGHT
+        self.loss_fun = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([8.0]))
+        self.sigmoid = torch.nn.Sigmoid()
+
+    @auto_fp16()
     def forward(self, img):
         x = self.features(img)
         x = self.avgpool(x)
@@ -38,9 +45,14 @@ class SubNet(torch.nn.Module):
         y = self.classifier(x)
         return y
 
+    @auto_fp16()
     def loss(self, pred, target):
         loss = self.loss_fun(pred, target)
         return loss
+
+    @auto_fp16()
+    def simple_test(self, img):
+        return self.sigmoid(self.forward(img))[0][0]
 
 
 @DETECTORS.register_module()
@@ -62,7 +74,7 @@ class TileRCNN(TwoStageDetector):
             train_cfg=train_cfg,
             test_cfg=test_cfg,
             pretrained=pretrained)
-        self.objectness = SubNet()
+        self.tile_classifier = TileClassifier()
 
     def forward_train(self,
                       img,
@@ -75,9 +87,9 @@ class TileRCNN(TwoStageDetector):
                       **kwargs):
         losses = dict()
         targets = [len(gt_bbox) > 0 for gt_bbox in gt_bboxes]
-        pred = self.objectness(img)
+        pred = self.tile_classifier(img)
         target_labels = torch.tensor(targets, device=pred.device)
-        loss_tile = self.objectness.loss(pred, target_labels.unsqueeze(1).float())
+        loss_tile = self.tile_classifier.loss(pred, target_labels.unsqueeze(1).float())
 
         losses.update(dict(loss_tile=loss_tile))
 
@@ -104,7 +116,7 @@ class TileRCNN(TwoStageDetector):
 
     def simple_test(self, img, img_metas, proposals=None, rescale=False):
         """Test without augmentation."""
-        
+
         # mean = img_metas[0]['img_norm_cfg']['mean']
         # std = img_metas[0]['img_norm_cfg']['std']
         # original_image = img * torch.tensor(std, device=img.device).view(3, 1, 1) + torch.tensor(mean, device=img.device).view(3, 1, 1)
@@ -121,8 +133,7 @@ class TileRCNN(TwoStageDetector):
         #     return img
         # img = _inner_impl(img, keep)
 
-        pred = self.objectness(img)
-        keep = torch.sigmoid(pred)[0][0] > 0.45
+        keep = self.tile_classifier.simple_test(img) > 0.45
         if not keep:
             tmp_results = []
             num_classes = 1
