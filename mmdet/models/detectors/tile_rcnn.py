@@ -1,7 +1,8 @@
 from ..builder import DETECTORS
 from .two_stage import TwoStageDetector
+from .single_stage import SingleStageDetector
 from mmcv.runner import auto_fp16
-
+import numpy as np
 import torch
 from torch import nn
 
@@ -34,7 +35,7 @@ class TileClassifier(torch.nn.Module):
         )
 
         # TODO: FIND A WAY TO INJECT POS WEIGHT
-        self.loss_fun = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor([8.0]))
+        self.loss_fun = torch.nn.BCEWithLogitsLoss()
         self.sigmoid = torch.nn.Sigmoid()
 
     @auto_fp16()
@@ -56,7 +57,7 @@ class TileClassifier(torch.nn.Module):
 
 
 @DETECTORS.register_module()
-class TileRCNN(TwoStageDetector):
+class TwoStageTileRCNN(TwoStageDetector):
 
     def __init__(self,
                  backbone,
@@ -66,7 +67,7 @@ class TileRCNN(TwoStageDetector):
                  test_cfg,
                  neck=None,
                  pretrained=None):
-        super(TileRCNN, self).__init__(
+        super(TwoStageTileRCNN, self).__init__(
             backbone=backbone,
             neck=neck,
             rpn_head=rpn_head,
@@ -140,7 +141,7 @@ class TileRCNN(TwoStageDetector):
             bbox_results = []
             mask_results = []
             for _ in range(num_classes):
-                bbox_results.append(torch.empty((0, 5), dtype=torch.float32))
+                bbox_results.append(np.empty((0, 5), dtype=np.float32))
                 mask_results.append([])
             tmp_results.append((bbox_results, mask_results))
             return tmp_results
@@ -155,3 +156,68 @@ class TileRCNN(TwoStageDetector):
 
         return self.roi_head.simple_test(
             x, proposal_list, img_metas, rescale=rescale)
+
+
+@DETECTORS.register_module()
+class SingleStageTileRCNN(SingleStageDetector):
+    """Implementation of `VarifocalNet
+    (VFNet).<https://arxiv.org/abs/2008.13367>`_"""
+
+    def __init__(self,
+                 backbone,
+                 neck,
+                 bbox_head,
+                 train_cfg=None,
+                 test_cfg=None,
+                 pretrained=None,
+                 init_cfg=None):
+        super(SingleStageTileRCNN, self).__init__(
+            backbone, neck, bbox_head, train_cfg,
+            test_cfg, pretrained, init_cfg)
+        self.tile_classifier = TileClassifier()
+
+    def forward_train(self,
+                      img,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels,
+                      gt_bboxes_ignore=None):
+        losses = dict()
+        targets = [len(gt_bbox) > 0 for gt_bbox in gt_bboxes]
+        pred = self.tile_classifier(img)
+        target_labels = torch.tensor(targets, device=pred.device)
+        loss_tile = self.tile_classifier.loss(pred, target_labels.unsqueeze(1).float())
+
+        losses.update(dict(loss_tile=loss_tile))
+
+        if not any(targets):
+            return losses
+
+        img = img[targets]
+        img_metas = [item for keep, item in zip(targets, img_metas) if keep]
+        gt_labels = [item for keep, item in zip(targets, gt_labels) if keep]
+        gt_bboxes = [item for keep, item in zip(targets, gt_bboxes) if keep]
+        if gt_bboxes_ignore:
+            gt_bboxes_ignore = [
+                item for keep, item in zip(targets, gt_bboxes_ignore) if keep]
+        det_loss = super().forward_train(
+                        img,
+                        img_metas,
+                        gt_bboxes,
+                        gt_labels,
+                        gt_bboxes_ignore)
+        losses.update(det_loss)
+        return det_loss
+
+    def simple_test(self, img, img_metas, rescale=False):
+        keep = self.tile_classifier.simple_test(img) > 0.45
+        if not keep:
+            tmp_results = []
+            num_classes = 1
+            bbox_results = []
+            for _ in range(num_classes):
+                bbox_results.append(np.empty((0, 5), dtype=np.float32))
+            tmp_results.append(bbox_results)
+            return tmp_results
+
+        return super().simple_test(img, img_metas, rescale)

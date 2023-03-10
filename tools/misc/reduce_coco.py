@@ -18,6 +18,13 @@ import os
 
 
 def shorten_annotation(src_path, dst_path, num_images):
+    """ Shorten annotation JSON file to contain only first num_images
+
+    Args:
+        src_path (_type_): _description_
+        dst_path (_type_): _description_
+        num_images (int): number of images to keep
+    """
     with open(src_path) as read_file:
         content = json.load(read_file)
         selected_indexes = sorted(
@@ -44,8 +51,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
             "Reduce number of samples in annotation JSON file")
     parser.add_argument(
-        "--input", 
-        type=str, 
+        "--input",
+        type=str,
         help="input annotation JSON i.e. annotation_train.json")
     parser.add_argument(
         "--num",
