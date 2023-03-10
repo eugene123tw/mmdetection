@@ -63,8 +63,11 @@ class ShipDetectionDataset:
     def get_adaptive_tile_params(self, object_tile_ratio=0.01, rule="avg"):
         tile_cfg = dict(tile_size=None, tile_overlap=None, tile_max_number=None)
         bboxes = np.zeros((0, 4), dtype=np.float32)
+        image_sizes = []
         max_object = 0
-        for anno in self.dataset['train']['objects']:
+        for dataset_item in self.dataset['train']:
+            image_sizes.extend([dataset_item['image'].size] * len(dataset_item['objects']['bbox']))
+            anno = dataset_item['objects']
             bbox = np.array(anno['bbox'])
             bboxes = np.concatenate((bboxes, bbox), 0)
             if len(bbox) > max_object:
@@ -75,7 +78,11 @@ class ShipDetectionDataset:
         if rule == "min":
             object_area = np.min(areas)
         elif rule == "avg":
-            object_area = np.mean(areas)
+            object_area = np.median(areas)
+
+        # NOTE: another strategy is to compute the minimum detectable object size
+        # For instance, in order to have > 1 pixel in the smallest feature map, the minimum object size should be VFNet the largest stride is 128
+
         max_area = np.max(areas)
 
         tile_size = int(math.sqrt(object_area/object_tile_ratio))
@@ -87,7 +94,8 @@ class ShipDetectionDataset:
         print(tile_cfg)
         return tile_cfg
 
+
 if __name__ == '__main__':
     dataset = ShipDetectionDataset(data_root="/home/yuchunli/_DATASET/ship-detection")
-    # dataset.get_adaptive_tile_params()
-    dataset.make_coco(export_path="/home/yuchunli/_DATASET/ship-detection/coco")
+    dataset.get_adaptive_tile_params(rule='min')
+    # dataset.make_coco(export_path="/home/yuchunli/_DATASET/ship-detection-coco")

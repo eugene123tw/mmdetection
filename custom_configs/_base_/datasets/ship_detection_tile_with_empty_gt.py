@@ -1,10 +1,10 @@
 dataset_type = 'CocoDataset'
-data_root = "/home/yuchunli/_DATASET/ship-detection/coco/"
+data_root = "/home/yuchunli/_DATASET/ship-detection-coco/"
 samples_per_gpu = 12
 img_size = (1024, 1024)
 
 tile_cfg = dict(
-    tile_size=514,
+    tile_size=400,  # y = (1024**2 * 896) / 128**2
     min_area_ratio=0.9,
     overlap_ratio=0.2,
     iou_threshold=0.45,

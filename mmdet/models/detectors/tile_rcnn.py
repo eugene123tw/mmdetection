@@ -207,7 +207,7 @@ class SingleStageTileRCNN(SingleStageDetector):
                         gt_labels,
                         gt_bboxes_ignore)
         losses.update(det_loss)
-        return det_loss
+        return losses
 
     def simple_test(self, img, img_metas, rescale=False):
         keep = self.tile_classifier.simple_test(img) > 0.45
