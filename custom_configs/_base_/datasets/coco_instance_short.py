@@ -33,7 +33,8 @@ data = dict(
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_train2017_shorten_to_10.json',
+        ann_file=data_root +
+        'annotations/instances_train2017_shorten_to_10.json',
         img_prefix=data_root + 'train2017/',
         pipeline=train_pipeline),
     val=dict(

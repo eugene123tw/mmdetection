@@ -37,6 +37,8 @@ from .single_stage import SingleStageDetector
 from .solo import SOLO
 from .solov2 import SOLOv2
 from .sparse_rcnn import SparseRCNN
+from .tile_rcnn import SingleStageTileRCNN, TwoStageTileRCNN
+from .tile_solo import TiledSOLO
 from .tood import TOOD
 from .trident_faster_rcnn import TridentFasterRCNN
 from .two_stage import TwoStageDetector
@@ -45,8 +47,6 @@ from .yolact import YOLACT
 from .yolo import YOLOV3
 from .yolof import YOLOF
 from .yolox import YOLOX
-from .tile_solo import TiledSOLO
-from .tile_rcnn import TwoStageTileRCNN, SingleStageTileRCNN
 
 __all__ = [
     'ATSS', 'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',

@@ -6,6 +6,7 @@ from .detectors_resnext import DetectoRS_ResNeXt
 from .efficientnet import EfficientNet
 from .hourglass import HourglassNet
 from .hrnet import HRNet
+from .imgclsmob import *
 from .mobilenet_v2 import MobileNetV2
 from .pvt import PyramidVisionTransformer, PyramidVisionTransformerV2
 from .regnet import RegNet
@@ -16,7 +17,6 @@ from .resnext import ResNeXt
 from .ssd_vgg import SSDVGG
 from .swin import SwinTransformer
 from .trident_resnet import TridentResNet
-from .imgclsmob import *
 
 __all__ = [
     'RegNet', 'ResNet', 'ResNetV1d', 'ResNeXt', 'SSDVGG', 'HRNet',

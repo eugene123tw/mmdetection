@@ -1,72 +1,110 @@
-import PIL
-from datasets import load_dataset
-from datumaro import AnnotationType, DatasetItem, Bbox, LabelCategories
-from datumaro.components.project import Dataset, Environment
-from datumaro.util.image import Image
-import numpy as np
-from sklearn.model_selection import train_test_split
 import math
+import os
+
+import cv2
+import numpy as np
+import pandas as pd
+import PIL
+from datumaro import AnnotationType, Bbox, DatasetItem, LabelCategories
+from datumaro.components.project import Dataset
+from datumaro.util.image import Image
+from sklearn.model_selection import train_test_split
 
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
 
 
 class ShipDetectionDataset:
-    """ Ship Detection from HuggingFace Dataset
-    """
-    def __init__(self, data_root) -> None:
-        self.dataset = load_dataset(data_root)
-        self.categories = {
-            AnnotationType.label: LabelCategories.from_iterable(['ship'])}
+    """Ship Detection from HuggingFace Dataset."""
 
-    def make_coco(self, export_path):
-        train_indices, val_indices = train_test_split(
-            np.arange(len(self.dataset['train'])),
-            test_size=0.2,
-            random_state=42)
+    def __init__(self, data_root) -> None:
+        self.data_root = data_root
+        self.categories = {
+            AnnotationType.label: LabelCategories.from_iterable(['ship'])
+        }
+
+    def make_coco_test(self, export_path):
+        test_root = os.path.join(self.data_root, 'test')
+        df = pd.read_csv(
+            os.path.join(self.data_root, '.extras/sample_submission.csv'))
+        anno_dict = {}
+
+        for index, row in df.iterrows():
+            image_id = row['id']
+            if image_id not in anno_dict:
+                anno_dict[image_id] = []
+            anno_dict[image_id].append([0, 0, 100, 100])
 
         dsitems = []
-        for subset in ['train', 'test']:
-            for index, dataset_item in enumerate(self.dataset[subset]):
-                attributes = {'filename': dataset_item['image'].filename}
-                if subset == 'train':
-                    subset_str = "train" if index in train_indices else "val"
-                else:
-                    subset_str = "test"
-                np_image = np.array(dataset_item['image'])
-                image = Image(data=np_image, size=np_image.shape[0:2])
-                bboxes = []
-                for bbox, label in zip(dataset_item['objects']['bbox'],
-                                       dataset_item['objects']['categories']):
-                    if label != 0:
-                        raise RuntimeError("Label is not 0")
-                    x1, y1, x2, y2 = bbox
-                    box = Bbox(
-                        x=x1,
-                        y=y1,
-                        w=(x2 - x1),
-                        h=(y2 - y1),
-                        label=label
-                    )
-                    bboxes.append(box)
+        for index, (image_id, bboxes) in enumerate(anno_dict.items()):
+            img = cv2.imread(os.path.join(test_root, f'{image_id}'))
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            attributes = {'filename': f'{self.data_root}/test/{image_id}.png'}
+            image = Image(data=img, size=img.shape[0:2])
+            datumaro_bboxes = []
+            for bbox in bboxes:
+                x1, y1, x2, y2 = bbox
+                box = Bbox(x=x1, y=y1, w=(x2 - x1), h=(y2 - y1), label=0)
+                datumaro_bboxes.append(box)
 
-                dsitems.append(
-                    DatasetItem(id=index,
-                                annotations=bboxes,
-                                subset=subset_str,
-                                image=image,
-                                attributes=attributes)
-                )
+            dsitems.append(
+                DatasetItem(
+                    id=index,
+                    annotations=datumaro_bboxes,
+                    subset='test',
+                    image=image,
+                    attributes=attributes))
 
         dataset = Dataset.from_iterable(dsitems, categories=self.categories)
-        dataset.export(export_path, 'coco', save_images=True)
+        dataset.export(export_path, 'coco', default_image_ext='.png')
 
-    def get_adaptive_tile_params(self, object_tile_ratio=0.01, rule="avg"):
-        tile_cfg = dict(tile_size=None, tile_overlap=None, tile_max_number=None)
+    def make_coco_train(self, export_path):
+        train_root = os.path.join(self.data_root, 'train')
+        df = pd.read_csv(os.path.join(self.data_root, '.extras/train.csv'))
+        anno_dict = {}
+
+        for index, row in df.iterrows():
+            image_id = row['id']
+            if image_id not in anno_dict:
+                anno_dict[image_id] = []
+            anno_dict[image_id].append(
+                [row['xmin'], row['ymin'], row['xmax'], row['ymax']])
+
+        train_indices, val_indices = train_test_split(
+            np.arange(len(anno_dict)), test_size=0.2, random_state=0)
+
+        dsitems = []
+        for index, (image_id, bboxes) in enumerate(anno_dict.items()):
+            img = cv2.imread(os.path.join(train_root, f'{image_id}'))
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            attributes = {'filename': f'{self.data_root}/train/{image_id}.png'}
+            subset_str = 'train' if index in train_indices else 'val'
+            image = Image(data=img, size=img.shape[0:2])
+            datumaro_bboxes = []
+            for bbox in bboxes:
+                x1, y1, x2, y2 = bbox
+                box = Bbox(x=x1, y=y1, w=(x2 - x1), h=(y2 - y1), label=0)
+                datumaro_bboxes.append(box)
+
+            dsitems.append(
+                DatasetItem(
+                    id=index,
+                    annotations=datumaro_bboxes,
+                    subset=subset_str,
+                    image=image,
+                    attributes=attributes))
+
+        dataset = Dataset.from_iterable(dsitems, categories=self.categories)
+        dataset.export(export_path, 'coco', default_image_ext='.png')
+
+    def get_adaptive_tile_params(self, object_tile_ratio=0.01, rule='avg'):
+        tile_cfg = dict(
+            tile_size=None, tile_overlap=None, tile_max_number=None)
         bboxes = np.zeros((0, 4), dtype=np.float32)
         image_sizes = []
         max_object = 0
         for dataset_item in self.dataset['train']:
-            image_sizes.extend([dataset_item['image'].size] * len(dataset_item['objects']['bbox']))
+            image_sizes.extend([dataset_item['image'].size] *
+                               len(dataset_item['objects']['bbox']))
             anno = dataset_item['objects']
             bbox = np.array(anno['bbox'])
             bboxes = np.concatenate((bboxes, bbox), 0)
@@ -75,9 +113,9 @@ class ShipDetectionDataset:
 
         areas = (bboxes[:, 2] - bboxes[:, 0]) * (bboxes[:, 3] - bboxes[:, 1])
 
-        if rule == "min":
+        if rule == 'min':
             object_area = np.min(areas)
-        elif rule == "avg":
+        elif rule == 'avg':
             object_area = np.median(areas)
 
         # NOTE: another strategy is to compute the minimum detectable object size
@@ -85,8 +123,9 @@ class ShipDetectionDataset:
 
         max_area = np.max(areas)
 
-        tile_size = int(math.sqrt(object_area/object_tile_ratio))
-        overlap_ratio = max_area/(tile_size**2) if max_area/(tile_size**2) < 1.0 else None
+        tile_size = int(math.sqrt(object_area / object_tile_ratio))
+        overlap_ratio = max_area / (
+            tile_size**2) if max_area / (tile_size**2) < 1.0 else None
 
         tile_cfg.update(dict(tile_size=tile_size, tile_max_number=max_object))
         if overlap_ratio:
@@ -96,6 +135,17 @@ class ShipDetectionDataset:
 
 
 if __name__ == '__main__':
-    dataset = ShipDetectionDataset(data_root="/home/yuchunli/_DATASET/ship-detection")
-    dataset.get_adaptive_tile_params(rule='min')
+    dataset = ShipDetectionDataset(
+        data_root='/home/yuchunli/_DATASET/ship-detection')
+    # dataset.get_adaptive_tile_params(rule='min')
     # dataset.make_coco(export_path="/home/yuchunli/_DATASET/ship-detection-coco")
+    # dataset.make_coco(export_path="/home/yuchunli/_DATASET/ship-detection-coco-full")
+    # dataset.make_fold(export_path="/home/yuchunli/_DATASET/ship-detection-coco/ship-detection-coco")
+
+    # dataset.make_coco_from_root(
+    #     root="/home/yuchunli/_DATASET/ship-detection",
+    #     export_path="/home/yuchunli/_DATASET/ship-detection-coco-full")
+
+    dataset.make_coco_test(
+        root='/home/yuchunli/_DATASET/ship-detection',
+        export_path='/home/yuchunli/_DATASET/ship-detection-coco-full-test')

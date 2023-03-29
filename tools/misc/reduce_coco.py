@@ -18,7 +18,7 @@ import os
 
 
 def shorten_annotation(src_path, dst_path, num_images):
-    """ Shorten annotation JSON file to contain only first num_images
+    """Shorten annotation JSON file to contain only first num_images.
 
     Args:
         src_path (_type_): _description_
@@ -27,8 +27,7 @@ def shorten_annotation(src_path, dst_path, num_images):
     """
     with open(src_path) as read_file:
         content = json.load(read_file)
-        selected_indexes = sorted(
-            [item['id'] for item in content['images']])
+        selected_indexes = sorted([item['id'] for item in content['images']])
         selected_indexes = selected_indexes[:num_images]
         content['images'] = [
             item for item in content['images']
@@ -49,16 +48,13 @@ def shorten_annotation(src_path, dst_path, num_images):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-            "Reduce number of samples in annotation JSON file")
+        'Reduce number of samples in annotation JSON file')
     parser.add_argument(
-        "--input",
+        '--input',
         type=str,
-        help="input annotation JSON i.e. annotation_train.json")
+        help='input annotation JSON i.e. annotation_train.json')
     parser.add_argument(
-        "--num",
-        type=int,
-        required=True,
-        help="Number of samples to keep")
+        '--num', type=int, required=True, help='Number of samples to keep')
     args = parser.parse_args()
     return args
 
@@ -68,11 +64,10 @@ def main():
     assert os.path.exists(args.input) and args.input.endswith('.json')
     output_dir = os.path.dirname(args.input)
     basename = os.path.splitext(os.path.basename(args.input))[0]
-    output_basename = f"{basename}_shorten_to_{args.num}.json"
+    output_basename = f'{basename}_shorten_to_{args.num}.json'
     output_path = os.path.join(output_dir, output_basename)
     shorten_annotation(args.input, output_path, args.num)
 
 
 if __name__ == '__main__':
     main()
-

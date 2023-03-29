@@ -1,9 +1,12 @@
-_base_ = ['../_base_/datasets/ship_detection_tile_with_empty_gt.py']
+_base_ = [
+    '../_base_/datasets/ship_detection_tile.py'
+]
 
 evaluation = dict(interval=1, metric='bbox', save_best='bbox_mAP_50')
 optimizer = dict(
-    type='AdamW',
-    lr=0.01 / 2,
+    type='SGD',
+    lr=0.01,
+    momentum=0.9,
     weight_decay=0.0001,
     paramwise_cfg=dict(bias_lr_mult=2.0, bias_decay_mult=0.0))
 optimizer_config = dict(grad_clip=None)
@@ -26,7 +29,7 @@ opencv_num_threads = 0
 mp_start_method = 'fork'
 auto_scale_lr = dict(enable=False, base_batch_size=16)
 model = dict(
-    type='SingleStageTileRCNN',
+    type='VFNet',
     backbone=dict(
         type='ResNet',
         depth=50,

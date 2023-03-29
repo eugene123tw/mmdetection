@@ -2,7 +2,6 @@ _base_ = [
     '_base_/datasets/vitens_coliform_tile.py',
 ]
 
-
 model = dict(
     type='MaskRCNN',
     backbone=dict(
@@ -139,6 +138,6 @@ checkpoint_config = dict(interval=1)
 log_config = dict(interval=10, hooks=[dict(type='TextLoggerHook')])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = "/home/yuchunli/_MODELS/mmdet/mask_rcnn_r50_fpn_2x_coco_bbox_mAP-0.392__segm_mAP-0.354_20200505_003907-3e542a40.pth"
+load_from = '/home/yuchunli/_MODELS/mmdet/mask_rcnn_r50_fpn_2x_coco_bbox_mAP-0.392__segm_mAP-0.354_20200505_003907-3e542a40.pth'
 resume_from = None
 workflow = [('train', 1)]

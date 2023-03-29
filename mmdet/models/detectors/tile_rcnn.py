@@ -1,13 +1,16 @@
-from ..builder import DETECTORS
-from .two_stage import TwoStageDetector
-from .single_stage import SingleStageDetector
-from mmcv.runner import auto_fp16
+# Copyright (c) OpenMMLab. All rights reserved.
 import numpy as np
 import torch
+from mmcv.runner import auto_fp16
 from torch import nn
+
+from ..builder import DETECTORS
+from .single_stage import SingleStageDetector
+from .two_stage import TwoStageDetector
 
 
 class TileClassifier(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         self.fp16_enabled = False
@@ -27,12 +30,9 @@ class TileClassifier(torch.nn.Module):
         )
         self.avgpool = torch.nn.AdaptiveAvgPool2d((6, 6))
         self.classifier = torch.nn.Sequential(
-            torch.nn.Linear(256 * 6 * 6, 256),
-            torch.nn.ReLU(inplace=True),
-            torch.nn.Linear(256, 256),
-            torch.nn.ReLU(inplace=True),
-            torch.nn.Linear(256, 1)
-        )
+            torch.nn.Linear(256 * 6 * 6, 256), torch.nn.ReLU(inplace=True),
+            torch.nn.Linear(256, 256), torch.nn.ReLU(inplace=True),
+            torch.nn.Linear(256, 1))
 
         # TODO: FIND A WAY TO INJECT POS WEIGHT
         self.loss_fun = torch.nn.BCEWithLogitsLoss()
@@ -90,7 +90,9 @@ class TwoStageTileRCNN(TwoStageDetector):
         targets = [len(gt_bbox) > 0 for gt_bbox in gt_bboxes]
         pred = self.tile_classifier(img)
         target_labels = torch.tensor(targets, device=pred.device)
-        loss_tile = self.tile_classifier.loss(pred, target_labels.unsqueeze(1).float())
+        loss_tile = self.tile_classifier.loss(
+            pred,
+            target_labels.unsqueeze(1).float())
 
         losses.update(dict(loss_tile=loss_tile))
 
@@ -104,35 +106,16 @@ class TwoStageTileRCNN(TwoStageDetector):
         gt_masks = [item for keep, item in zip(targets, gt_masks) if keep]
         if gt_bboxes_ignore:
             gt_bboxes_ignore = [
-                item for keep, item in zip(targets, gt_bboxes_ignore) if keep]
-        rcnn_loss = super().forward_train(
-                        img,
-                        img_metas,
-                        gt_bboxes,
-                        gt_labels,
-                        gt_bboxes_ignore, gt_masks, proposals, **kwargs)
+                item for keep, item in zip(targets, gt_bboxes_ignore) if keep
+            ]
+        rcnn_loss = super().forward_train(img, img_metas, gt_bboxes, gt_labels,
+                                          gt_bboxes_ignore, gt_masks,
+                                          proposals, **kwargs)
         losses.update(rcnn_loss)
         return losses
 
-
     def simple_test(self, img, img_metas, proposals=None, rescale=False):
         """Test without augmentation."""
-
-        # mean = img_metas[0]['img_norm_cfg']['mean']
-        # std = img_metas[0]['img_norm_cfg']['std']
-        # original_image = img * torch.tensor(std, device=img.device).view(3, 1, 1) + torch.tensor(mean, device=img.device).view(3, 1, 1)
-        # original_image = original_image[0].permute(1, 2, 0).cpu().numpy().copy()
-        # original_image = cv2.cvtColor(original_image.astype(np.uint8), cv2.COLOR_RGB2BGR) 
-        # cv2.putText(original_image, f"{torch.sigmoid(pred)[0][0]}", (0, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-        # cv2.imwrite(f"/home/yuchunli/git/mmdetection/work_dirs/tile_rcnn_r50_fpn_1x_coliform_tile/eval_output/{os.path.basename(img_metas[0]['tile_path'])}", original_image)
-
-        # @torch.jit.script_if_tracing
-        # def _inner_impl(img, keep):
-        #     if not keep:
-        #         img = F.adaptive_avg_pool2d(img, (64, 64))
-        #         return img
-        #     return img
-        # img = _inner_impl(img, keep)
 
         keep = self.tile_classifier.simple_test(img) > 0.45
         if not keep:
@@ -171,9 +154,9 @@ class SingleStageTileRCNN(SingleStageDetector):
                  test_cfg=None,
                  pretrained=None,
                  init_cfg=None):
-        super(SingleStageTileRCNN, self).__init__(
-            backbone, neck, bbox_head, train_cfg,
-            test_cfg, pretrained, init_cfg)
+        super(SingleStageTileRCNN,
+              self).__init__(backbone, neck, bbox_head, train_cfg, test_cfg,
+                             pretrained, init_cfg)
         self.tile_classifier = TileClassifier()
 
     def forward_train(self,
@@ -186,7 +169,9 @@ class SingleStageTileRCNN(SingleStageDetector):
         targets = [len(gt_bbox) > 0 for gt_bbox in gt_bboxes]
         pred = self.tile_classifier(img)
         target_labels = torch.tensor(targets, device=pred.device)
-        loss_tile = self.tile_classifier.loss(pred, target_labels.unsqueeze(1).float())
+        loss_tile = self.tile_classifier.loss(
+            pred,
+            target_labels.unsqueeze(1).float())
 
         losses.update(dict(loss_tile=loss_tile))
 
@@ -199,13 +184,10 @@ class SingleStageTileRCNN(SingleStageDetector):
         gt_bboxes = [item for keep, item in zip(targets, gt_bboxes) if keep]
         if gt_bboxes_ignore:
             gt_bboxes_ignore = [
-                item for keep, item in zip(targets, gt_bboxes_ignore) if keep]
-        det_loss = super().forward_train(
-                        img,
-                        img_metas,
-                        gt_bboxes,
-                        gt_labels,
-                        gt_bboxes_ignore)
+                item for keep, item in zip(targets, gt_bboxes_ignore) if keep
+            ]
+        det_loss = super().forward_train(img, img_metas, gt_bboxes, gt_labels,
+                                         gt_bboxes_ignore)
         losses.update(det_loss)
         return losses
 

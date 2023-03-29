@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
-from itertools import product
 import copy
 import os.path as osp
 import tempfile
 import uuid
+from itertools import product
 from multiprocessing import Pool
 from time import time
 from typing import Dict, List
 
-import mmcv
+import cv2
 import numpy as np
 import pycocotools.mask as mask_util
 from mmcv.ops import nms
@@ -74,7 +74,8 @@ class Tile:
                  iou_threshold: float = 0.45,
                  max_per_img: int = 1500,
                  filter_empty_gt: bool = True,
-                 nproc: int = 4):
+                 nproc: int = 4,
+                 test_mode: bool = False):
         self.min_area_ratio = min_area_ratio
         self.filter_empty_gt = filter_empty_gt
         self.iou_threshold = iou_threshold
@@ -88,8 +89,7 @@ class Tile:
         self.tmp_folder = tmp_dir.name
         self.nproc = nproc
         self.img2fp32 = False
-        self.positive_tiles = 0
-        self.negative_tiles = 0
+        self.test_mode = test_mode
         for p in pipeline:
             if p.type == 'PhotoMetricDistortion':
                 self.img2fp32 = True
@@ -105,14 +105,16 @@ class Tile:
         pre_img_idx = None
         for i, tile in enumerate(self.tiles):
             tile['tile_path'] = osp.join(
-                self.tmp_folder, "_".join([str(i), tile['uuid'], tile['ori_filename'], '.jpg']))
+                self.tmp_folder,
+                '_'.join([str(i), tile['uuid'], tile['ori_filename'], '.png']))
             x_1, y_1, x_2, y_2 = tile['tile_box']
             dataset_idx = tile['dataset_idx']
             if dataset_idx != pre_img_idx:
                 ori_img = self.dataset[dataset_idx]['img']
                 pre_img_idx = dataset_idx
 
-            mmcv.imwrite(ori_img[y_1:y_2, x_1:x_2, :], tile['tile_path'])
+            # mmcv.imwrite(ori_img[y_1:y_2, x_1:x_2, :], tile['tile_path'])
+            cv2.imwrite(tile['tile_path'], ori_img[y_1:y_2, x_1:x_2, :])
             pbar.update(1)
 
     @timeit
@@ -120,7 +122,8 @@ class Tile:
         """Generate tile information and tile annotation from dataset.
 
         Returns:
-            List[Dict]: A list of tiles generated from the dataset. Each item comprises tile annotation and tile
+            List[Dict]: A list of tiles generated from the dataset.
+                        Each item comprises tile annotation and tile
                         coordinates relative to the original image.
         """
         tiles = []
@@ -135,7 +138,7 @@ class Tile:
         return tiles
 
     def gen_single_img(self, result: Dict, dataset_idx: int) -> Dict:
-        """ Add full-size image for inference or training
+        """Add full-size image for inference or training.
 
         Args:
             result (Dict): the original image-level result (i.e. the original image annotation)
@@ -144,14 +147,15 @@ class Tile:
         Returns:
             Dict: annotation with some other useful information for data pipeline.
         """
-        result['tile_box'] = (0, 0, result['img'].shape[1], result['img'].shape[0])
+        result['tile_box'] = (0, 0, result['img'].shape[1],
+                              result['img'].shape[0])
         result['dataset_idx'] = dataset_idx
         result['original_shape_'] = result['img_shape']
         result['uuid'] = str(uuid.uuid4())
-        self.positive_tiles += 1
         return result
 
-    def gen_tiles_single_img(self, result: Dict, dataset_idx: int) -> List[Dict]:
+    def gen_tiles_single_img(self, result: Dict,
+                             dataset_idx: int) -> List[Dict]:
         """Generate tile annotation for a single image.
 
         Args:
@@ -164,7 +168,8 @@ class Tile:
         tile_list = []
         gt_bboxes = result.pop('gt_bboxes', np.zeros((0, 4), dtype=np.float32))
         gt_masks = result.pop('gt_masks', None)
-        gt_bboxes_ignore = result.pop('gt_bboxes_ignore', np.zeros((0, 4), dtype=np.float32))
+        gt_bboxes_ignore = result.pop('gt_bboxes_ignore',
+                                      np.zeros((0, 4), dtype=np.float32))
         gt_labels = result.pop('gt_labels', np.array([], dtype=np.int64))
         img_shape = result.pop('img_shape')
         height, width = img_shape[:2]
@@ -173,11 +178,11 @@ class Tile:
         num_patches_h = int((height - self.tile_size) / self.stride) + 1
         num_patches_w = int((width - self.tile_size) / self.stride) + 1
         for (tile_i, tile_j), (loc_i, loc_j) in zip(
-            product(range(num_patches_h), range(num_patches_w)),
-            product(
-                range(0, height - self.tile_size + 1, self.stride),
-                range(0, width - self.tile_size + 1, self.stride),
-            ),
+                product(range(num_patches_h), range(num_patches_w)),
+                product(
+                    range(0, height - self.tile_size + 1, self.stride),
+                    range(0, width - self.tile_size + 1, self.stride),
+                ),
         ):
             x_1 = loc_j
             x_2 = loc_j + self.tile_size
@@ -191,15 +196,13 @@ class Tile:
             tile['dataset_idx'] = dataset_idx
             tile['gt_bboxes_ignore'] = gt_bboxes_ignore
             tile['uuid'] = str(uuid.uuid4())
-            self.tile_ann_assignment(tile, np.array([[x_1, y_1, x_2, y_2]]), gt_bboxes, gt_masks, gt_labels)
+            if not self.test_mode:
+                self.tile_ann_assignment(tile, np.array([[x_1, y_1, x_2,
+                                                          y_2]]), gt_bboxes,
+                                         gt_masks, gt_labels)
             # filter empty ground truth
             if self.filter_empty_gt and len(tile['gt_labels']) == 0:
                 continue
-
-            if len(tile['gt_labels']) > 0:
-                self.positive_tiles += 1
-            else:
-                self.negative_tiles += 1            
 
             tile_list.append(tile)
         return tile_list
@@ -223,8 +226,9 @@ class Tile:
         )
         return result_template
 
-    def tile_ann_assignment(self, tile_result: Dict, tile_box: np.ndarray, gt_bboxes: np.ndarray,
-                            gt_masks: BitmapMasks, gt_labels: np.ndarray) -> Dict:
+    def tile_ann_assignment(self, tile_result: Dict, tile_box: np.ndarray,
+                            gt_bboxes: np.ndarray, gt_masks: BitmapMasks,
+                            gt_labels: np.ndarray) -> Dict:
         """Assign new annotation to this tile.
 
         Ground-truth is discarded if the overlap with this tile is lower than
@@ -255,7 +259,8 @@ class Tile:
             tile_bboxes[:, 3] = np.minimum(self.tile_size, tile_bboxes[:, 3])
             tile_result['gt_bboxes'] = tile_bboxes
             tile_result['gt_labels'] = tile_lables
-            tile_result['gt_masks'] = gt_masks[match_idx].crop(tile_box[0]) if gt_masks is not None else []
+            tile_result['gt_masks'] = gt_masks[match_idx].crop(
+                tile_box[0]) if gt_masks is not None else []
         else:
             tile_result.pop('bbox_fields')
             tile_result.pop('mask_fields')
@@ -268,7 +273,8 @@ class Tile:
         if gt_masks is None:
             tile_result.pop('gt_masks')
 
-    def tile_boxes_overlap(self, tile_box: np.ndarray, boxes: np.ndarray) -> np.ndarray:
+    def tile_boxes_overlap(self, tile_box: np.ndarray,
+                           boxes: np.ndarray) -> np.ndarray:
         """Compute overlapping ratio over boxes.
 
         Args:
@@ -280,17 +286,20 @@ class Tile:
         """
         box_area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
 
-        width_height = np.minimum(tile_box[:, None, 2:], boxes[:, 2:]) - np.maximum(tile_box[:, None, :2], boxes[:, :2])
+        width_height = np.minimum(tile_box[:, None, 2:],
+                                  boxes[:, 2:]) - np.maximum(
+                                      tile_box[:, None, :2], boxes[:, :2])
 
         width_height = width_height.clip(min=0)  # [N,M,2]
         inter = width_height.prod(2)
 
         # handle empty boxes
-        tile_box_ratio = np.where(inter > 0, inter / box_area, np.zeros(1, dtype=inter.dtype))
+        tile_box_ratio = np.where(inter > 0, inter / box_area,
+                                  np.zeros(1, dtype=inter.dtype))
         return tile_box_ratio
 
-    def multiclass_nms(self, boxes: np.ndarray, scores: np.ndarray, idxs: np.ndarray, iou_threshold: float,
-                       max_num: int):
+    def multiclass_nms(self, boxes: np.ndarray, scores: np.ndarray,
+                       idxs: np.ndarray, iou_threshold: float, max_num: int):
         """NMS for multi-class bboxes.
 
         Args:
@@ -318,7 +327,8 @@ class Tile:
             keep = keep[:max_num]
         return dets, keep
 
-    def tile_nms(self, bbox_results: List[np.ndarray], mask_results: List[List], label_results: List[np.ndarray],
+    def tile_nms(self, bbox_results: List[np.ndarray],
+                 mask_results: List[List], label_results: List[np.ndarray],
                  iou_threshold: float, max_per_img: int, detection: bool):
         """NMS after aggregation suppressing duplicate boxes in tile-overlap
         areas.
@@ -331,7 +341,8 @@ class Tile:
             max_per_img (int): if there are more than max_per_img bboxes after NMS, only top max_per_img will be kept.
         """
         assert len(bbox_results) == len(mask_results) == len(label_results)
-        for i, result in enumerate(zip(bbox_results, mask_results, label_results)):
+        for i, result in enumerate(
+                zip(bbox_results, mask_results, label_results)):
             score_bboxes, masks, labels = result
             bboxes = score_bboxes[:, :4]
             scores = np.ascontiguousarray(score_bboxes[:, 4])
@@ -345,13 +356,17 @@ class Tile:
             bboxes = bboxes[keep_indices]
             labels = labels[keep_indices]
             scores = scores[keep_indices]
-            bbox_results[i] = bbox2result(np.concatenate(
-                [bboxes, scores[:, None]], -1), labels, self.num_classes)
+            bbox_results[i] = bbox2result(
+                np.concatenate([bboxes, scores[:, None]], -1), labels,
+                self.num_classes)
 
             if not detection:
                 masks = [masks[keep_idx] for keep_idx in keep_indices]
                 masks = self.process_masks(masks)
-                mask_results[i] = [list(np.asarray(masks)[labels == i]) for i in range(self.num_classes)]
+                mask_results[i] = [
+                    list(np.asarray(masks)[labels == i])
+                    for i in range(self.num_classes)
+                ]
 
     def __len__(self):
         return len(self.tiles)
@@ -367,7 +382,7 @@ class Tile:
         """
         result = copy.deepcopy(self.tiles[idx])
         if result.get('tile_path') and osp.isfile(result['tile_path']):
-            img = mmcv.imread(result['tile_path'])
+            img = cv2.imread(result['tile_path'])
             if self.img2fp32:
                 img = img.astype(np.float32)
             result['img'] = img
@@ -382,7 +397,7 @@ class Tile:
 
     @staticmethod
     def readjust_tile_mask(tile_rle: Dict):
-        """ Shift tile-level mask to image-level mask
+        """Shift tile-level mask to image-level mask.
 
         Args:
             tile_rle (Dict): _description_
@@ -397,7 +412,8 @@ class Tile:
         return mask_util.encode(tile_mask)
 
     def process_masks(self, tile_masks: List[Dict]):
-        """ Decode Mask Result to Numpy mask, add paddings then encode masks again.
+        """Decode Mask Result to Numpy mask, add paddings then encode masks
+        again.
 
         Args:
             tile_masks (_type_): _description_
@@ -430,9 +446,11 @@ class Tile:
             num_classes = len(results[0])
             dtype = results[0][0].dtype
         else:
-            raise RuntimeError("Unknown data type")
+            raise RuntimeError('Unknown data type')
 
-        merged_bbox_results = [np.empty((0, 5), dtype=dtype) for _ in range(self.num_images)]
+        merged_bbox_results = [
+            np.empty((0, 5), dtype=dtype) for _ in range(self.num_images)
+        ]
         merged_mask_results = [[] for _ in range(self.num_images)]
         merged_label_results = [[] for _ in range(self.num_images)]
 
@@ -447,7 +465,8 @@ class Tile:
                 bbox_result = result
                 mask_result = [[] for _ in range(num_classes)]
 
-            for cls_idx, cls_result in enumerate(zip(bbox_result, mask_result)):
+            for cls_idx, cls_result in enumerate(
+                    zip(bbox_result, mask_result)):
                 cls_bbox_result, cls_mask_result = cls_result
                 _tmp_cls_bbox_result = np.zeros_like(cls_bbox_result)
                 _tmp_cls_bbox_result[:, 0] = cls_bbox_result[:, 0] + tile_x1
@@ -456,12 +475,18 @@ class Tile:
                 _tmp_cls_bbox_result[:, 3] = cls_bbox_result[:, 3] + tile_y1
                 _tmp_cls_bbox_result[:, 4] = cls_bbox_result[:, 4]
 
-                merged_bbox_results[img_idx] = np.concatenate((merged_bbox_results[img_idx], _tmp_cls_bbox_result))
-                merged_label_results[img_idx] = np.concatenate([merged_label_results[img_idx],
-                                                                len(cls_bbox_result) * [cls_idx]])
+                merged_bbox_results[img_idx] = np.concatenate(
+                    (merged_bbox_results[img_idx], _tmp_cls_bbox_result))
+                merged_label_results[img_idx] = np.concatenate([
+                    merged_label_results[img_idx],
+                    len(cls_bbox_result) * [cls_idx]
+                ])
 
                 for m in cls_mask_result:
-                    m.update(dict(tile_box=tile['tile_box'], img_size=(img_h, img_w)))
+                    m.update(
+                        dict(
+                            tile_box=tile['tile_box'],
+                            img_size=(img_h, img_w)))
                 merged_mask_results[img_idx] += cls_mask_result
 
         # run NMS after aggregation suppressing duplicate boxes in

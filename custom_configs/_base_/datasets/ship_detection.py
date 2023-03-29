@@ -1,6 +1,6 @@
 # dataset settings
 dataset_type = 'CocoDataset'
-data_root = "/home/yuchunli/_DATASET/ship-detection/coco/"
+data_root = '/home/yuchunli/_DATASET/ship-detection-coco-full/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 train_pipeline = [
@@ -34,16 +34,19 @@ data = dict(
     train=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train.json',
-        img_prefix=data_root + 'train/',
+        img_prefix='/home/yuchunli/_DATASET/ship-detection/train',
+        classes=['ship'],
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val.json',
-        img_prefix=data_root + 'val/',
+        img_prefix='/home/yuchunli/_DATASET/ship-detection/train',
+        classes=['ship'],
         pipeline=test_pipeline),
     test=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_test.json',
-        img_prefix=data_root + 'test/',
+        img_prefix='/home/yuchunli/_DATASET/ship-detection/test',
+        classes=['ship'],
         pipeline=test_pipeline))
 evaluation = dict(metric=['bbox'])

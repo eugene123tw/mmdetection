@@ -1,16 +1,15 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import torch
 import numpy as np
-
-from ..builder import DETECTORS
-from .solo import SOLO
-from mmdet.models.backbones.resnet import BasicBlock
-from mmdet.models.losses import CrossEntropyLoss
-from mmdet.models.losses import accuracy
-
+import torch
 from torch import nn
 
+from mmdet.models.losses import CrossEntropyLoss, accuracy
+from ..builder import DETECTORS
+from .solo import SOLO
+
+
 class SubNet(torch.nn.Module):
+
     def __init__(self):
         super().__init__()
         self.features = nn.Sequential(
@@ -36,7 +35,7 @@ class SubNet(torch.nn.Module):
             nn.Linear(256, 2),
         )
         self.loss_fun = CrossEntropyLoss()
-    
+
     def forward(self, img, prob=False):
         x = self.features(img)
         x = self.avgpool(x)
@@ -45,13 +44,11 @@ class SubNet(torch.nn.Module):
         if prob:
             return torch.softmax(logits, -1)
         return logits
-    
+
     def loss(self, pred, label):
         loss = self.loss_fun(pred, label.long())
         return loss
 
-
-#TODO[EUGENE]: TRY MASKRCNN
 
 @DETECTORS.register_module()
 class TiledSOLO(SOLO):
@@ -79,7 +76,6 @@ class TiledSOLO(SOLO):
             init_cfg=init_cfg,
             pretrained=pretrained)
         self.objectness = SubNet()
-
 
     def forward_train(self,
                       img,
@@ -116,7 +112,6 @@ class TiledSOLO(SOLO):
         objectness_labels = torch.tensor(keep, device=logits.device)
         loss_objectness = self.objectness.loss(logits, objectness_labels)
 
-        probs = torch.softmax(logits, -1)
         loss['acc'] = accuracy(logits, objectness_labels)
 
         loss.update(dict(loss_objectness=loss_objectness))
@@ -130,7 +125,8 @@ class TiledSOLO(SOLO):
         gt_masks = [item for keep, item in zip(keep, gt_masks) if keep]
         if gt_bboxes_ignore:
             gt_bboxes_ignore = [
-                item for keep, item in zip(keep, gt_bboxes_ignore) if keep]
+                item for keep, item in zip(keep, gt_bboxes_ignore) if keep
+            ]
 
         solo_loss = super().forward_train(
             img,
@@ -139,11 +135,10 @@ class TiledSOLO(SOLO):
             gt_labels,
             gt_bboxes=gt_bboxes,
             gt_bboxes_ignore=gt_bboxes_ignore,
-            **kwargs
-        )
+            **kwargs)
         loss.update(solo_loss)
         return loss
-    
+
     def simple_test(self, img, img_metas, rescale=False):
         prob = self.objectness(img, prob=True)
         keep_list = prob[:, -1] >= 0.5

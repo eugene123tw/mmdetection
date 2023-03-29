@@ -51,6 +51,6 @@ model = dict(
         sigma=2.0,
         max_per_img=100))
 
-load_from="/home/yuchunli/_MODELS/mmdet/decoupled_solo_light_r50_fpn_3x_coco_20210906_142703-e70e226f.pth"
+load_from = '/home/yuchunli/_MODELS/mmdet/decoupled_solo_light_r50_fpn_3x_coco_20210906_142703-e70e226f.pth'
 
 optimizer = dict(type='SGD', lr=0.01)

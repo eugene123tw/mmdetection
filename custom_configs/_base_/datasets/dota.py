@@ -1,8 +1,12 @@
 # dataset settings
 dataset_type = 'CocoDataset'
 data_root = '/home/yuchunli/_DATASET/'
-classes = ['plane', 'baseball-diamond', 'bridge', 'ground-track-field', 'small-vehicle', 'large-vehicle', 'ship', 'tennis-court',
-                    'basketball-court', 'storage-tank',  'soccer-ball-field', 'roundabout', 'harbor', 'swimming-pool', 'helicopter']
+classes = [
+    'plane', 'baseball-diamond', 'bridge', 'ground-track-field',
+    'small-vehicle', 'large-vehicle', 'ship', 'tennis-court',
+    'basketball-court', 'storage-tank', 'soccer-ball-field', 'roundabout',
+    'harbor', 'swimming-pool', 'helicopter'
+]
 
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)

@@ -459,6 +459,7 @@ class MultiImageMixDataset:
         ])
         self._skip_type_keys = skip_type_keys
 
+
 @DATASETS.register_module()
 class ImageTilingDataset:
     """A wrapper of tiling dataset.
@@ -507,7 +508,8 @@ class ImageTilingDataset:
             min_area_ratio=min_area_ratio,
             iou_threshold=iou_threshold,
             max_per_img=max_per_img,
-            filter_empty_gt=False if dataset.test_mode else filter_empty_gt)
+            filter_empty_gt=False if dataset.test_mode else filter_empty_gt,
+            test_mode=test_mode)
         self.flag = np.zeros(len(self), dtype=np.uint8)
         self.pipeline = Compose(pipeline)
         self.test_mode = test_mode
@@ -547,9 +549,3 @@ class ImageTilingDataset:
     def __del__(self):
         if getattr(self, 'tmp_dir', False):
             self.tmp_dir.cleanup()
-
-    def positive_tiles(self):
-        return self.tile_dataset.positive_tiles
-
-    def negative_tiels(self):
-        return self.tile_dataset.negative_tiles

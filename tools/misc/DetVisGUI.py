@@ -74,7 +74,8 @@ class COCO_dataset:
         self.mask = False
 
         # according json to get category, image list, and annotations.
-        self.category, self.img_list, self.total_annotations, self.cat2idx, self.img2idx = self.parse_json(self.anno_root, self.has_anno)
+        self.category, self.img_list, self.total_annotations, self.cat2idx, self.img2idx = self.parse_json(
+            self.anno_root, self.has_anno)
         self.aug_category = aug_category(self.category)
 
         self.results = self.get_det_results() if self.det_file != '' else None
