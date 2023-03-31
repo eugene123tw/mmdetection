@@ -1,7 +1,8 @@
 import argparse
-import numpy as np
-import pickle
 import json
+import pickle
+
+import numpy as np
 import pandas as pd
 
 
@@ -19,8 +20,10 @@ def gen_pred_csv(pickle_file, ann_json, submission_csv, sample_submission_csv):
     sub_image_list = pd.read_csv(sample_submission_csv)['id'].values
 
     with open(pickle_file, 'rb') as f:
-        det_results = np.asarray(pickle.load(f), dtype=object)  # [(bg + cls), images]
-    det_results = np.transpose(det_results, (1, 0))  # dim should be (class, image)
+        det_results = np.asarray(
+            pickle.load(f), dtype=object)  # [(bg + cls), images]
+    det_results = np.transpose(det_results,
+                               (1, 0))  # dim should be (class, image)
     img_list = get_image_list(ann_json)
     img_list = [img_name.replace('.jpg', '.png') for img_name in img_list]
 
@@ -45,11 +48,16 @@ def gen_pred_csv(pickle_file, ann_json, submission_csv, sample_submission_csv):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Generate prediction csv from result pickle')
+    parser = argparse.ArgumentParser(
+        description='Generate prediction csv from result pickle')
     parser.add_argument('pickle_file', help='result pickle file')
     parser.add_argument('ann_json', help='annotation json file')
-    parser.add_argument('--sample_sub', default='/home/yuchunli/_DATASET/ship-detection/.extras/sample_submission.csv')
-    parser.add_argument('--output', default='submission.csv', help='output csv file')
+    parser.add_argument(
+        '--sample_sub',
+        default=
+        '/home/yuchunli/_DATASET/ship-detection/.extras/sample_submission.csv')
+    parser.add_argument(
+        '--output', default='submission.csv', help='output csv file')
     args = parser.parse_args()
     return args
 

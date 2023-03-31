@@ -1,6 +1,4 @@
-_base_ = [
-    '../_base_/datasets/ship_detection_tile.py'
-]
+_base_ = ['../_base_/datasets/ship_detection_tile.py']
 
 evaluation = dict(interval=1, metric='bbox', save_best='bbox_mAP_50')
 optimizer = dict(

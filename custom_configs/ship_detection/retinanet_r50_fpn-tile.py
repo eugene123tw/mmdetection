@@ -1,6 +1,4 @@
-_base_ = [
-    '../_base_/datasets/ship_detection_tile.py'
-]
+_base_ = ['../_base_/datasets/ship_detection_tile.py']
 
 evaluation = dict(interval=1, metric='bbox', save_best='bbox_mAP_50')
 optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)
@@ -24,7 +22,6 @@ mp_start_method = 'fork'
 auto_scale_lr = dict(enable=False, base_batch_size=16)
 auto_resume = False
 gpu_ids = [0]
-
 
 model = dict(
     type='RetinaNet',
