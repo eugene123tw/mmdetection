@@ -494,6 +494,7 @@ class ImageTilingDataset:
                  max_per_img=200,
                  filter_empty_gt=True,
                  test_mode=False,
+                 add_single_image=True,
                  **kwargs):
 
         self.CLASSES = dataset.CLASSES
@@ -509,7 +510,9 @@ class ImageTilingDataset:
             iou_threshold=iou_threshold,
             max_per_img=max_per_img,
             filter_empty_gt=False if dataset.test_mode else filter_empty_gt,
-            test_mode=test_mode)
+            test_mode=test_mode,
+            add_single_image=add_single_image,
+        )
         self.flag = np.zeros(len(self), dtype=np.uint8)
         self.pipeline = Compose(pipeline)
         self.test_mode = test_mode

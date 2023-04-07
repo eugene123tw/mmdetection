@@ -75,7 +75,8 @@ class Tile:
                  max_per_img: int = 1500,
                  filter_empty_gt: bool = True,
                  nproc: int = 4,
-                 test_mode: bool = False):
+                 test_mode: bool = False,
+                 add_single_image: bool = True):
         self.min_area_ratio = min_area_ratio
         self.filter_empty_gt = filter_empty_gt
         self.iou_threshold = iou_threshold
@@ -96,7 +97,7 @@ class Tile:
                 break
 
         self.dataset = dataset
-        self.tiles = self.gen_tile_ann()
+        self.tiles = self.gen_tile_ann(add_single_image)
         self.cache_tiles()
 
     @timeit
@@ -113,13 +114,15 @@ class Tile:
                 ori_img = self.dataset[dataset_idx]['img']
                 pre_img_idx = dataset_idx
 
-            # mmcv.imwrite(ori_img[y_1:y_2, x_1:x_2, :], tile['tile_path'])
             cv2.imwrite(tile['tile_path'], ori_img[y_1:y_2, x_1:x_2, :])
             pbar.update(1)
 
     @timeit
-    def gen_tile_ann(self) -> List[Dict]:
+    def gen_tile_ann(self, add_single_image=True) -> List[Dict]:
         """Generate tile information and tile annotation from dataset.
+
+        Args:
+            add_single_image (bool, optional): If set true, the full-size image
 
         Returns:
             List[Dict]: A list of tiles generated from the dataset.
@@ -129,8 +132,9 @@ class Tile:
         tiles = []
         pbar = tqdm(total=len(self.dataset))
 
-        for idx, result in enumerate(self.dataset):
-            tiles.append(self.gen_single_img(result, dataset_idx=idx))
+        if add_single_image:
+            for idx, result in enumerate(self.dataset):
+                tiles.append(self.gen_single_img(result, dataset_idx=idx))
 
         for idx, result in enumerate(self.dataset):
             tiles.extend(self.gen_tiles_single_img(result, dataset_idx=idx))
@@ -141,11 +145,11 @@ class Tile:
         """Add full-size image for inference or training.
 
         Args:
-            result (Dict): the original image-level result (i.e. the original image annotation)
+            result (Dict):
             dataset_idx (int): the image index this tile belongs to
 
         Returns:
-            Dict: annotation with some other useful information for data pipeline.
+            Dict:
         """
         result['tile_box'] = (0, 0, result['img'].shape[1],
                               result['img'].shape[0])
@@ -159,11 +163,11 @@ class Tile:
         """Generate tile annotation for a single image.
 
         Args:
-            result (Dict): the original image-level result (i.e. the original image annotation)
+            result (Dict):
             dataset_idx (int): the image index this tile belongs to
 
         Returns:
-            List[Dict]: a list of tile annotation with some other useful information for data pipeline.
+            List[Dict]:
         """
         tile_list = []
         gt_bboxes = result.pop('gt_bboxes', np.zeros((0, 4), dtype=np.float32))
@@ -235,7 +239,7 @@ class Tile:
         min_area_ratio.
 
         Args:
-            tile_box (np.ndarray): the coordinate for this tile box (i.e. the tile coordinate relative to the image)
+            tile_box (np.ndarray): the coordinate for this tile box (i.e. the tile coordinate relative to the image)  # noqa: E501
             gt_bboxes (np.ndarray): the original image-level boxes
             gt_labels (np.ndarray): the original image-level labels
 
@@ -337,8 +341,8 @@ class Tile:
             bbox_results (List[List]): image-level box prediction
             mask_results (List[np.ndarray]): image-level mask prediction
             label_results (List[List]): image-level label prediction
-            iou_threshold (float): IoU threshold to be used to suppress boxes in tiles' overlap areas.
-            max_per_img (int): if there are more than max_per_img bboxes after NMS, only top max_per_img will be kept.
+            iou_threshold (float): IoU threshold to be used to suppress boxes
+            max_per_img (int): if there are more than max_per_img bboxes after
         """
         assert len(bbox_results) == len(mask_results) == len(label_results)
         for i, result in enumerate(
@@ -354,7 +358,7 @@ class Tile:
                 max_num=max_per_img)
 
             bboxes = bboxes[keep_indices]
-            labels = labels[keep_indices]
+            labels = np.array(labels)[keep_indices]
             scores = scores[keep_indices]
             bbox_results[i] = bbox2result(
                 np.concatenate([bboxes, scores[:, None]], -1), labels,

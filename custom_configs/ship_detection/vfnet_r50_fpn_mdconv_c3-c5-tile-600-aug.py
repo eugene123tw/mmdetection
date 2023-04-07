@@ -14,13 +14,13 @@ lr_config = dict(
     warmup_iters=500,
     warmup_ratio=0.1,
     step=[16, 30])
-runner = dict(type='EpochBasedRunner', max_epochs=24)
+runner = dict(type='EpochBasedRunner', max_epochs=40)
 checkpoint_config = dict(interval=1)
-log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
+log_config = dict(interval=10, hooks=[dict(type='TextLoggerHook')])
 # custom_hooks = [dict(type='NumClassCheckHook')]
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/home/yuchunli/_MODELS/mmdet/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-6879c318.pth'
+load_from = '/home/yuchunli/_MODELS/mmdet/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-6879c318.pth'  # noqa: E501
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0

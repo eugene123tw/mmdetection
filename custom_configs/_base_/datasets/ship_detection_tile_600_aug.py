@@ -9,7 +9,9 @@ tile_cfg = dict(
     overlap_ratio=0.2,
     iou_threshold=0.45,
     max_per_img=1700,
-    filter_empty_gt=True)
+    filter_empty_gt=True,
+    add_single_image=False,
+)
 
 albu_train_transforms = [
     dict(
@@ -18,7 +20,7 @@ albu_train_transforms = [
         scale_limit=1,
         rotate_limit=45,
         interpolation=1,
-        p=0.8),
+        p=0.5),
     dict(
         type='RandomBrightnessContrast',
         brightness_limit=[0.1, 0.3],
@@ -100,6 +102,7 @@ train_dataset = dict(
     dataset=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train.json',
+        # ann_file=data_root + 'annotations/instances_train_shorten_to_10.json',  # noqa: E501
         img_prefix='/home/yuchunli/_DATASET/ship-detection/train',
         pipeline=[
             dict(type='LoadImageFromFile'),
@@ -115,6 +118,7 @@ val_dataset = dict(
     dataset=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val.json',
+        # ann_file=data_root + 'annotations/instances_val_shorten_to_10.json',
         img_prefix='/home/yuchunli/_DATASET/ship-detection/train',
         test_mode=True,
         pipeline=[dict(type='LoadImageFromFile')],
