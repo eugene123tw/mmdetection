@@ -8,7 +8,7 @@ import PIL
 from datumaro import AnnotationType, Bbox, DatasetItem, LabelCategories
 from datumaro.components.project import Dataset
 from datumaro.util.image import Image
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
 
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
 
@@ -57,7 +57,7 @@ class ShipDetectionDataset:
         dataset = Dataset.from_iterable(dsitems, categories=self.categories)
         dataset.export(export_path, 'coco', default_image_ext='.png')
 
-    def make_coco_train(self, export_path):
+    def make_coco_train(self, export_path, fold=5):
         train_root = os.path.join(self.data_root, 'train')
         df = pd.read_csv(os.path.join(self.data_root, '.extras/train.csv'))
         anno_dict = {}
@@ -69,15 +69,11 @@ class ShipDetectionDataset:
             anno_dict[image_id].append(
                 [row['xmin'], row['ymin'], row['xmax'], row['ymax']])
 
-        train_indices, val_indices = train_test_split(
-            np.arange(len(anno_dict)), test_size=0.2, random_state=0)
-
         dsitems = []
         for index, (image_id, bboxes) in enumerate(anno_dict.items()):
             img = cv2.imread(os.path.join(train_root, f'{image_id}'))
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             attributes = {'filename': f'{self.data_root}/train/{image_id}.png'}
-            subset_str = 'train' if index in train_indices else 'val'
             image = Image(data=img, size=img.shape[0:2])
             datumaro_bboxes = []
             for bbox in bboxes:
@@ -89,12 +85,18 @@ class ShipDetectionDataset:
                 DatasetItem(
                     id=index,
                     annotations=datumaro_bboxes,
-                    subset=subset_str,
                     image=image,
                     attributes=attributes))
 
-        dataset = Dataset.from_iterable(dsitems, categories=self.categories)
-        dataset.export(export_path, 'coco', default_image_ext='.png')
+        kf = KFold(n_splits=fold, shuffle=True, random_state=42)
+        for fold, (train_indices, val_indices) in enumerate(kf.split(dsitems)):
+            for index in train_indices:
+                dsitems[index].subset = f'train'
+            for index in val_indices:
+                dsitems[index].subset = f'val'
+
+            dataset = Dataset.from_iterable(dsitems, categories=self.categories)
+            dataset.export(f"{export_path}-fold-{fold}", 'coco', default_image_ext='.png')
 
     def get_adaptive_tile_params(self, object_tile_ratio=0.01, rule='avg'):
         tile_cfg = dict(
@@ -142,10 +144,9 @@ if __name__ == '__main__':
     # dataset.make_coco(export_path="/home/yuchunli/_DATASET/ship-detection-coco-full")
     # dataset.make_fold(export_path="/home/yuchunli/_DATASET/ship-detection-coco/ship-detection-coco")
 
-    # dataset.make_coco_from_root(
-    #     root="/home/yuchunli/_DATASET/ship-detection",
-    #     export_path="/home/yuchunli/_DATASET/ship-detection-coco-full")
+    dataset.make_coco_train(
+        export_path="/home/yuchunli/_DATASET/ship-detection-coco")
 
-    dataset.make_coco_test(
-        root='/home/yuchunli/_DATASET/ship-detection',
-        export_path='/home/yuchunli/_DATASET/ship-detection-coco-full-test')
+    # dataset.make_coco_test(
+    #     root='/home/yuchunli/_DATASET/ship-detection',
+    #     export_path='/home/yuchunli/_DATASET/ship-detection-coco-full-test')
