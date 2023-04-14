@@ -1,7 +1,7 @@
-# _base_ = ['../_base_/datasets/ship_detection_tile_600.py']
-_base_ = ['../_base_/datasets/ship_detection.py']
+_base_ = ['../_base_/datasets/ship_detection_tile_600.py']
+# _base_ = ['../_base_/datasets/ship_detection.py']
 
-evaluation = dict(interval=1, metric='bbox')
+evaluation = dict(interval=1, metric='bbox', save_best='bbox_mAP_50')
 optimizer_config = dict(grad_clip=None)
 optimizer = dict(
     type='AdamW',
@@ -24,8 +24,20 @@ auto_resume = False
 gpu_ids = [0]
 
 checkpoint_config = dict(interval=1)
-log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
-custom_hooks = [dict(type='NumClassCheckHook')]
+
+log_config = dict(
+    interval=10,
+    hooks=[
+        dict(type='TextLoggerHook'),
+        dict(
+            type='MMDetWandbHook',
+            init_kwargs={'project': "ship-detection"},
+            interval=10,
+            log_checkpoint=False,
+            log_checkpoint_metadata=False)
+    ]
+)
+
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 load_from = "https://download.openmmlab.com/mmdetection/v2.0/dyhead/atss_swin-l-p4-w12_fpn_dyhead_mstrain_2x_coco/atss_swin-l-p4-w12_fpn_dyhead_mstrain_2x_coco_20220509_100315-bc5b6516.pth"

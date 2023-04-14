@@ -8,13 +8,40 @@ tile_cfg = dict(
     min_area_ratio=0.9,
     overlap_ratio=0.2,
     iou_threshold=0.45,
-    max_per_img=1700,
-    filter_empty_gt=True)
+    max_per_img=2000,
+    filter_empty_gt=True,
+    add_single_image=False,
+)
+
+albu_train_transforms = [
+    dict(
+        type='ShiftScaleRotate',
+        shift_limit=0.2,
+        scale_limit=1,
+        rotate_limit=45,
+        interpolation=1,
+        p=0.5),
+]
 
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 
 train_pipeline = [
+    dict(
+        type='Albu',
+        transforms=albu_train_transforms,
+        bbox_params=dict(
+            type='BboxParams',
+            format='pascal_voc',
+            label_fields=['gt_labels'],
+            min_visibility=0.0,
+            filter_lost_elements=False),
+        keymap={
+            'img': 'image',
+            'gt_bboxes': 'bboxes'
+        },
+        update_pad_shape=False,
+        skip_img_without_anno=False),
     dict(type='Resize', img_scale=img_size, keep_ratio=False),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
@@ -44,6 +71,7 @@ train_dataset = dict(
     dataset=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train.json',
+        # ann_file=data_root + 'annotations/instances_train_shorten_to_10.json',  # noqa: E501
         img_prefix='/home/yuchunli/ship-detection/train',
         pipeline=[
             dict(type='LoadImageFromFile'),
@@ -59,6 +87,7 @@ val_dataset = dict(
     dataset=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val.json',
+        # ann_file=data_root + 'annotations/instances_val_shorten_to_10.json',
         img_prefix='/home/yuchunli/ship-detection/train',
         test_mode=True,
         pipeline=[dict(type='LoadImageFromFile')],

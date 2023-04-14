@@ -1,26 +1,41 @@
-_base_ = ['../_base_/datasets/ship_detection_tile_600_aug.py']
+_base_ = ['../_base_/datasets/ship_detection_tile_400_aug.py']
 
 evaluation = dict(interval=1, metric='bbox', save_best='bbox_mAP_50')
+
 optimizer = dict(
     type='SGD',
     lr=0.01,
     momentum=0.9,
     weight_decay=0.0001,
     paramwise_cfg=dict(bias_lr_mult=2.0, bias_decay_mult=0.0))
+
 optimizer_config = dict(grad_clip=None)
 lr_config = dict(
     policy='step',
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=0.1,
-    step=[16, 30])
-runner = dict(type='EpochBasedRunner', max_epochs=40)
+    step=[30, 40])
+runner = dict(type='EpochBasedRunner', max_epochs=50)
 checkpoint_config = dict(interval=1)
-log_config = dict(interval=10, hooks=[dict(type='TextLoggerHook')])
+
+log_config = dict(
+    interval=10,
+    hooks=[
+        dict(type='TextLoggerHook'),
+        dict(
+            type='MMDetWandbHook',
+            init_kwargs={'project': "ship-detection"},
+            interval=10,
+            log_checkpoint=True,
+            log_checkpoint_metadata=True)
+    ]
+)
+
 # custom_hooks = [dict(type='NumClassCheckHook')]
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/home/yuchunli/_MODELS/mmdet/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-6879c318.pth'  # noqa: E501
+load_from = '/home/yuchunli/_MODELS/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-6879c318.pth'
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0
@@ -34,7 +49,7 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='BN', requires_grad=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=True,
         style='pytorch',
         init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50'),
@@ -77,5 +92,5 @@ model = dict(
         nms_pre=1000,
         min_bbox_size=0,
         score_thr=0.05,
-        nms=dict(type='nms', iou_threshold=0.6),
+        nms=dict(type='nms', iou_threshold=0.45),
         max_per_img=500))

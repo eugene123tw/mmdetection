@@ -16,11 +16,21 @@ lr_config = dict(
     step=[16, 22])
 runner = dict(type='EpochBasedRunner', max_epochs=24)
 checkpoint_config = dict(interval=1)
-log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
-# custom_hooks = [dict(type='NumClassCheckHook')]
+log_config = dict(
+    interval=10,
+    hooks=[
+        dict(type='TextLoggerHook'),
+        dict(
+            type='MMDetWandbHook',
+            init_kwargs={'project': "ship-detection"},
+            interval=10,
+            log_checkpoint=True,
+            log_checkpoint_metadata=True)
+    ]
+)
+load_from = "https://download.openmmlab.com/mmdetection/v2.0/vfnet/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-b5f6da5e.pth"
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = 'https://download.openmmlab.com/mmdetection/v2.0/vfnet/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-6879c318.pth'
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0
@@ -29,17 +39,20 @@ auto_scale_lr = dict(enable=False, base_batch_size=16)
 model = dict(
     type='VFNet',
     backbone=dict(
-        type='ResNet',
-        depth=50,
+        type='ResNeXt',
+        depth=101,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=True,
         style='pytorch',
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50'),
+        init_cfg=dict(
+            type='Pretrained', checkpoint='open-mmlab://resnext101_64x4d'),
         dcn=dict(type='DCNv2', deform_groups=1, fallback_on_stride=False),
-        stage_with_dcn=(False, True, True, True)),
+        stage_with_dcn=(False, True, True, True),
+        groups=64,
+        base_width=4),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -50,7 +63,7 @@ model = dict(
         relu_before_extra_convs=True),
     bbox_head=dict(
         type='VFNetHead',
-        num_classes=1,
+        num_classes=80,
         in_channels=256,
         stacked_convs=3,
         feat_channels=256,
@@ -77,5 +90,7 @@ model = dict(
         nms_pre=1000,
         min_bbox_size=0,
         score_thr=0.05,
-        nms=dict(type='nms', iou_threshold=0.6),
-        max_per_img=500))
+        nms=dict(type='nms', iou_threshold=0.45),
+        max_per_img=600))
+auto_resume = False
+gpu_ids = [0]

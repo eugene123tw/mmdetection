@@ -1,5 +1,5 @@
 dataset_type = 'CocoDataset'
-data_root = '/home/yuchunli/_DATASET/ship-detection-coco-full/'
+data_root = '/home/yuchunli/ship-detection-coco-full/'
 samples_per_gpu = 12
 img_size = (1024, 1024)
 
@@ -44,7 +44,7 @@ train_dataset = dict(
     dataset=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train.json',
-        img_prefix='/home/yuchunli/_DATASET/ship-detection/train',
+        img_prefix='/home/yuchunli/ship-detection/train',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(type='LoadAnnotations', with_bbox=True),
@@ -59,7 +59,7 @@ val_dataset = dict(
     dataset=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val.json',
-        img_prefix='/home/yuchunli/_DATASET/ship-detection/train',
+        img_prefix='/home/yuchunli/ship-detection/train',
         test_mode=True,
         pipeline=[dict(type='LoadImageFromFile')],
         classes=['ship'],
@@ -72,7 +72,7 @@ test_dataset = dict(
     dataset=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_test.json',
-        img_prefix='/home/yuchunli/_DATASET/ship-detection/test',
+        img_prefix='/home/yuchunli/ship-detection/test',
         test_mode=True,
         pipeline=[dict(type='LoadImageFromFile')],
         classes=['ship'],

@@ -1,6 +1,6 @@
 dataset_type = 'CocoDataset'
-data_root = '/home/yuchunli/_DATASET/ship-detection-coco-full/'
-samples_per_gpu = 12
+data_root = '/home/yuchunli/ship-detection-coco-full/'
+samples_per_gpu = 8
 img_size = (1024, 1024)
 
 tile_cfg = dict(
@@ -8,7 +8,7 @@ tile_cfg = dict(
     min_area_ratio=0.9,
     overlap_ratio=0.2,
     iou_threshold=0.45,
-    max_per_img=1700,
+    max_per_img=2000,
     filter_empty_gt=True,
     add_single_image=False,
 )
@@ -20,37 +20,6 @@ albu_train_transforms = [
         scale_limit=1,
         rotate_limit=45,
         interpolation=1,
-        p=0.5),
-    dict(
-        type='RandomBrightnessContrast',
-        brightness_limit=[0.1, 0.3],
-        contrast_limit=[0.1, 0.3],
-        p=0.2),
-    dict(
-        type='OneOf',
-        transforms=[
-            dict(
-                type='RGBShift',
-                r_shift_limit=10,
-                g_shift_limit=10,
-                b_shift_limit=10,
-                p=1.0),
-            dict(
-                type='HueSaturationValue',
-                hue_shift_limit=20,
-                sat_shift_limit=30,
-                val_shift_limit=20,
-                p=1.0)
-        ],
-        p=0.1),
-    dict(type='JpegCompression', quality_lower=85, quality_upper=95, p=0.2),
-    dict(type='ChannelShuffle', p=0.1),
-    dict(
-        type='OneOf',
-        transforms=[
-            dict(type='Blur', blur_limit=3, p=1.0),
-            dict(type='MedianBlur', blur_limit=3, p=1.0)
-        ],
         p=0.5),
 ]
 
@@ -103,7 +72,7 @@ train_dataset = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_train.json',
         # ann_file=data_root + 'annotations/instances_train_shorten_to_10.json',  # noqa: E501
-        img_prefix='/home/yuchunli/_DATASET/ship-detection/train',
+        img_prefix='/home/yuchunli/ship-detection/train',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(type='LoadAnnotations', with_bbox=True),
@@ -119,7 +88,7 @@ val_dataset = dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_val.json',
         # ann_file=data_root + 'annotations/instances_val_shorten_to_10.json',
-        img_prefix='/home/yuchunli/_DATASET/ship-detection/train',
+        img_prefix='/home/yuchunli/ship-detection/train',
         test_mode=True,
         pipeline=[dict(type='LoadImageFromFile')],
         classes=['ship'],
@@ -132,7 +101,7 @@ test_dataset = dict(
     dataset=dict(
         type=dataset_type,
         ann_file=data_root + 'annotations/instances_test.json',
-        img_prefix='/home/yuchunli/_DATASET/ship-detection/test',
+        img_prefix='/home/yuchunli/ship-detection/test',
         test_mode=True,
         pipeline=[dict(type='LoadImageFromFile')],
         classes=['ship'],
