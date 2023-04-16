@@ -16,9 +16,9 @@ import copy
 import os.path as osp
 import tempfile
 import uuid
+import time
 from itertools import product
 from multiprocessing import Pool
-from time import time
 from typing import Dict, List
 
 import cv2
@@ -33,9 +33,9 @@ from mmdet.core import BitmapMasks, bbox2result
 def timeit(func):
 
     def wrapper(*args, **kwargs):
-        begin = time()
+        begin = time.perf_counter()
         result = func(*args, **kwargs)
-        print(f'\n==== {func.__name__}: {time() - begin} sec ====\n')
+        print(f'\n==== {func.__name__}: {time.perf_counter() - begin} sec ====\n')
         return result
 
     return wrapper
