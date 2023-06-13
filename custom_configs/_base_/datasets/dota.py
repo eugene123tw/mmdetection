@@ -13,20 +13,20 @@ img_norm_cfg = dict(
 
 train_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
-    dict(type='Resize', img_scale=(1024, 1024), keep_ratio=False),
+    dict(type='LoadAnnotations', with_bbox=True),
+    dict(type='Resize', img_scale=(512, 512), keep_ratio=False),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='Pad', size_divisor=32),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_masks']),
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels']),
 ]
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(1024, 1024),
+        img_scale=(512, 512),
         flip=False,
         transforms=[
             dict(type='Resize', keep_ratio=False),
@@ -39,24 +39,24 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=2,
+    samples_per_gpu=12,
     workers_per_gpu=2,
     train=dict(
         type=dataset_type,
-        ann_file=data_root + 'DOTA/anno/DOTA_train.json',
-        img_prefix=data_root + 'DOTA/train/images-jpeg/',
+        ann_file=data_root + 'dota-coco/anno/DOTA_train.json',
+        img_prefix=data_root + 'dota-coco/train/images-jpeg/',
         pipeline=train_pipeline,
         classes=classes),
     val=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
-        img_prefix=data_root + 'val2017/',
+        ann_file=data_root + 'dota-coco/anno/DOTA_val.json',
+        img_prefix=data_root + 'dota-coco/val/images-jpeg/',
         pipeline=test_pipeline,
         classes=classes),
     test=dict(
         type=dataset_type,
-        ann_file=data_root + 'annotations/instances_val2017.json',
-        img_prefix=data_root + 'val2017/',
+        ann_file=data_root + 'dota-coco/anno/DOTA_val.json',
+        img_prefix=data_root + 'dota-coco/val/images-jpeg/',
         pipeline=test_pipeline,
         classes=classes))
-evaluation = dict(metric=['bbox', 'segm'])
+evaluation = dict(metric=['bbox'])
