@@ -311,6 +311,8 @@ bash tools/dist_test.sh \
 - `EVAL_METRICS`: 需要测试的度量指标。可选值是取决于数据集的，比如 `proposal_fast`，`proposal`，`bbox`，`segm` 是 COCO 数据集的可选值，`mAP`，`recall` 是 Pascal VOC 数据集的可选值。Cityscapes 数据集可以测试 `cityscapes` 和所有 COCO 数据集支持的度量指标。
 - `--show`: 如果开启，检测结果将被绘制在图像上，以一个新窗口的形式展示。它只适用于单 GPU 的测试，是用于调试和可视化的。请确保使用此功能时，你的 GUI 可以在环境中打开。否则，你可能会遇到这么一个错误 `cannot connect to X server`。
 - `--show-dir`: 如果指明，检测结果将会被绘制在图像上并保存到指定目录。它只适用于单 GPU 的测试，是用于调试和可视化的。即使你的环境中没有 GUI，这个选项也可使用。
+- `--show-box-only`: 如果开启，对于同时输出`bbox`和`mask`的模型，将只在图像上绘制`bbox`。此选项不能与`--show-mask-only`同时启用。
+- `--show-mask-only`: 如果开启，对于同时输出`bbox`和`mask`的模型，将只在图像上绘制`mask`。此选项不能与`--show-box-only`同时启用。
 - `--show-score-thr`: 如果指明，得分低于此阈值的检测结果将会被移除。
 - `--cfg-options`:  如果指明，这里的键值对将会被合并到配置文件中。
 - `--eval-options`: 如果指明，这里的键值对将会作为字典参数被传入 `dataset.evaluation()` 函数中，仅在测试阶段使用。
@@ -366,7 +368,7 @@ bash tools/dist_test.sh \
        8 \
        --out results.pkl \
        --eval bbox segm \
-       --options "classwise=True"
+       --eval-options "classwise=True"
    ```
 
 6. 在 COCO test-dev 数据集上，使用 8 块 GPU 测试 Mask R-CNN，并生成 JSON 文件提交到官方评测服务器。配置文件和 checkpoint 文件 [在此](https://github.com/open-mmlab/mmdetection/tree/master/configs/mask_rcnn) 。
@@ -377,7 +379,7 @@ bash tools/dist_test.sh \
        checkpoints/mask_rcnn_r50_fpn_1x_coco_20200205-d4b0c5d6.pth \
        8 \
        --format-only \
-       --options "jsonfile_prefix=./mask_rcnn_test-dev_results"
+       --eval-options "jsonfile_prefix=./mask_rcnn_test-dev_results"
    ```
 
 这行命令生成两个 JSON 文件 `mask_rcnn_test-dev_results.bbox.json` 和 `mask_rcnn_test-dev_results.segm.json`。
@@ -390,7 +392,7 @@ bash tools/dist_test.sh \
        checkpoints/mask_rcnn_r50_fpn_1x_cityscapes_20200227-afe51d5a.pth \
        8 \
        --format-only \
-       --options "txtfile_prefix=./mask_rcnn_cityscapes_test_results"
+       --eval-options "txtfile_prefix=./mask_rcnn_cityscapes_test_results"
    ```
 
 生成的 png 和 txt 文件在 `./mask_rcnn_cityscapes_test_results` 文件夹下。

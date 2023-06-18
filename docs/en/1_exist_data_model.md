@@ -317,6 +317,8 @@ Optional arguments:
 - `EVAL_METRICS`: Items to be evaluated on the results. Allowed values depend on the dataset, e.g., `proposal_fast`, `proposal`, `bbox`, `segm` are available for COCO, `mAP`, `recall` for PASCAL VOC. Cityscapes could be evaluated by `cityscapes` as well as all COCO metrics.
 - `--show`: If specified, detection results will be plotted on the images and shown in a new window. It is only applicable to single GPU testing and used for debugging and visualization. Please make sure that GUI is available in your environment. Otherwise, you may encounter an error like `cannot connect to X server`.
 - `--show-dir`: If specified, detection results will be plotted on the images and saved to the specified directory. It is only applicable to single GPU testing and used for debugging and visualization. You do NOT need a GUI available in your environment for using this option.
+- `--show-box-only`: If specified, plot only `bbox` on the images if the model outputs both `bbox` and `mask`. It is invalid to specify both `--show-box-only` and `--show-mask-only`.
+- `--show-mask-only`: If specified, plot only `mask` on the images if the model outputs both `bbox` and `mask`. It is invalid to specify both `--show-box-only` and `--show-mask-only`.
 - `--show-score-thr`: If specified, detections with scores below this threshold will be removed.
 - `--cfg-options`:  if specified, the key-value pair optional cfg will be merged into config file
 - `--eval-options`: if specified, the key-value pair optional eval cfg will be kwargs for dataset.evaluate() function, it's only for evaluation
@@ -377,7 +379,7 @@ Assuming that you have already downloaded the checkpoints to the directory `chec
        8 \
        --out results.pkl \
        --eval bbox segm \
-       --options "classwise=True"
+       --eval-options "classwise=True"
    ```
 
 6. Test Mask R-CNN on COCO test-dev with 8 GPUs, and generate JSON files for submitting to the official evaluation server.
@@ -389,7 +391,7 @@ Assuming that you have already downloaded the checkpoints to the directory `chec
        checkpoints/mask_rcnn_r50_fpn_1x_coco_20200205-d4b0c5d6.pth \
        8 \
        --format-only \
-       --options "jsonfile_prefix=./mask_rcnn_test-dev_results"
+       --eval-options "jsonfile_prefix=./mask_rcnn_test-dev_results"
    ```
 
    This command generates two JSON files `mask_rcnn_test-dev_results.bbox.json` and `mask_rcnn_test-dev_results.segm.json`.
@@ -403,7 +405,7 @@ Assuming that you have already downloaded the checkpoints to the directory `chec
        checkpoints/mask_rcnn_r50_fpn_1x_cityscapes_20200227-afe51d5a.pth \
        8 \
        --format-only \
-       --options "txtfile_prefix=./mask_rcnn_cityscapes_test_results"
+       --eval-options "txtfile_prefix=./mask_rcnn_cityscapes_test_results"
    ```
 
    The generated png and txt would be under `./mask_rcnn_cityscapes_test_results` directory.
