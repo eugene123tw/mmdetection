@@ -720,7 +720,7 @@ class vis_tool:
             if type(segms[0]) == np.ndarray:
                 mask = segms[i]
             elif type(segms[0]) == dict:
-                mask = maskUtils.decode(segms[i]).astype(np.bool)
+                mask = maskUtils.decode(segms[i]).astype(bool)
             img[mask] = img[mask] * 0.5 + color_mask * 0.5
             self.color_list.append('#%02x%02x%02x' % tuple(color_mask[0]))
 
