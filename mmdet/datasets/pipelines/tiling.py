@@ -15,8 +15,8 @@
 import copy
 import os.path as osp
 import tempfile
-import uuid
 import time
+import uuid
 from itertools import product
 from multiprocessing import Pool
 from typing import Dict, List
@@ -35,7 +35,9 @@ def timeit(func):
     def wrapper(*args, **kwargs):
         begin = time.perf_counter()
         result = func(*args, **kwargs)
-        print(f'\n==== {func.__name__}: {time.perf_counter() - begin} sec ====\n')
+        print(
+            f'\n==== {func.__name__}: {time.perf_counter() - begin} sec ====\n'
+        )
         return result
 
     return wrapper
