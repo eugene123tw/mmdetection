@@ -8,6 +8,7 @@ from pathlib import Path
 import cv2
 import mmcv
 import numpy as np
+import pandas as pd
 import pycocotools.mask as mask_util
 from ensemble_boxes_wbf import weighted_boxes_fusion
 from pycocotools import _mask as coco_mask
@@ -109,27 +110,8 @@ def ensemble_masks_from_boxes(fused_boxes,
     return fused_masks
 
 
-if __name__ == '__main__':
-    pkl_path = '/home/yuchunli/git/mmdetection/demo/hubmap/ensemble_pkls'
-    image_root = '/home/yuchunli/git/mmdetection/demo/hubmap/samples'
+def hubmap_ensemble(model_list, image_root, pkl_path):
     fnames = list(Path(image_root).glob('*.tif'))
-
-    model_list = [{
-        'name':
-        'mask_rcnn_r50_fpn_2x_hubmap_giou_loss',
-        'config':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/mask_rcnn_r50_fpn_2x_hubmap_giou_loss.py',
-        'ckpt':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/best_segm_mAP_epoch_20.pth'
-    }, {
-        'name':
-        'mask_rcnn_r50_fpn_giou_loss_strategy4',
-        'config':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy4/mask_rcnn_r50_fpn_giou_loss_strategy4.py',
-        'ckpt':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy4/best_segm_mAP_epoch_12.pth'
-    }]
-
     for i, model_dict in enumerate(model_list):
         single_model_inference(fnames, model_dict, pkl_path)
 
@@ -138,10 +120,7 @@ if __name__ == '__main__':
         results = read_pkl(os.path.join(pkl_path, f'{model_dict["name"]}.pkl'))
         model_level.append(results)
 
-    num_imgs = len(model_level[0])
     num_models = len(model_level)
-    fused_boxes = []
-    fused_scores = []
     fused_masks = []
 
     ids = []
@@ -191,7 +170,41 @@ if __name__ == '__main__':
                 pred_string += f"0 {score} {encoded.decode('utf-8')}"
             else:
                 pred_string += f" 0 {score} {encoded.decode('utf-8')}"
-        ids.append(str(fname).split('.')[0].split('/')[-1])
+        ids.append(str(os.path.basename(fname)).split('.')[0].split('/')[-1])
         heights.append(h)
         widths.append(w)
         prediction_strings.append(pred_string)
+
+    return ids, prediction_strings, heights, widths
+
+
+if __name__ == '__main__':
+    pkl_path = '/home/yuchunli/git/mmdetection/demo/hubmap/ensemble_pkls'
+    image_root = '/home/yuchunli/git/mmdetection/demo/hubmap/samples'
+
+    model_list = [{
+        'name':
+        'mask_rcnn_r50_fpn_2x_hubmap_giou_loss',
+        'config':
+        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/mask_rcnn_r50_fpn_2x_hubmap_giou_loss.py',
+        'ckpt':
+        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/best_segm_mAP_epoch_20.pth'
+    }, {
+        'name':
+        'mask_rcnn_r50_fpn_giou_loss_strategy4',
+        'config':
+        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy4/mask_rcnn_r50_fpn_giou_loss_strategy4.py',
+        'ckpt':
+        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy4/best_segm_mAP_epoch_12.pth'
+    }]
+
+    ids, prediction_strings, heights, widths = hubmap_ensemble(
+        model_list, image_root, pkl_path)
+    submission = pd.DataFrame()
+    submission['id'] = ids
+    submission['height'] = heights
+    submission['width'] = widths
+    submission['prediction_string'] = prediction_strings
+    submission = submission.set_index('id')
+    # submission.to_csv("/kaggle/working/mmdetection/submission.csv")
+    # submission.to_csv("submission.csv")
