@@ -50,12 +50,21 @@ def encode_binary_mask(mask: np.ndarray) -> t.Text:
     return base64_str
 
 
-def single_model_inference(fnames, model_dict, output_path):
+def single_model_inference(fnames,
+                           model_dict,
+                           output_path,
+                           iou_thr=0.5,
+                           score_thr=0.001,
+                           max_num=100):
     model_name = model_dict['name']
     config_file = model_dict['config']
     ckpt = model_dict['ckpt']
 
     config = mmcv.Config.fromfile(config_file)
+    config.model.test_cfg.rcnn.nms.iou_threshold = iou_thr
+    config.model.test_cfg.rcnn.score_thr = score_thr
+    config.model.test_cfg.rcnn.max_per_img = max_num
+
     model = init_detector(config, ckpt, device='cuda:0')
     results = inference_detector(model, fnames)
     for result in results:
@@ -88,10 +97,9 @@ def ensemble_masks_from_boxes(fused_boxes,
     Returns:
         _type_: _description_
     """
-    masks = mask_util.decode(masks)
-    masks = masks.transpose(2, 0, 1)
-    fused_masks = np.zeros((len(fused_boxes), img_h, img_w), dtype=bool)
+    encoded_string = []
     for i, fused_box in enumerate(fused_boxes):
+        fused_mask = np.zeros((img_h, img_w), dtype=bool)
         x1, y1, x2, y2, score = fused_box
         x1 = int(x1)
         y1 = int(y1)
@@ -99,6 +107,7 @@ def ensemble_masks_from_boxes(fused_boxes,
         y2 = int(y2)
         vote_mask = np.zeros((y2 - y1, x2 - x1))
         for j, mask in enumerate(masks):
+            mask = mask_util.decode(mask)
             # crop mask from Model j
             vote_mask += mask[y1:y2, x1:x2]
 
@@ -106,14 +115,21 @@ def ensemble_masks_from_boxes(fused_boxes,
         vote_mask = vote_mask > mask_score_thres
         kernel = np.ones(shape=(3, 3), dtype=np.uint8)
         vote_mask = cv2.dilate(vote_mask.astype(np.uint8), kernel, 3)
-        fused_masks[i, y1:y2, x1:x2] = vote_mask
-    return fused_masks
+        fused_mask[y1:y2, x1:x2] = vote_mask
+        encoded_string.append(encode_binary_mask(fused_mask))
+    return encoded_string
 
 
-def hubmap_ensemble(model_list, image_root, pkl_path):
+def hubmap_ensemble(model_list,
+                    image_root,
+                    pkl_path,
+                    iou_thr=0.5,
+                    score_thr=0.001,
+                    max_num=100):
     fnames = list(Path(image_root).glob('*.tif'))
     for i, model_dict in enumerate(model_list):
-        single_model_inference(fnames, model_dict, pkl_path)
+        single_model_inference(fnames, model_dict, pkl_path, iou_thr,
+                               score_thr, max_num)
 
     model_level = []
     for i, model_dict in enumerate(model_list):
@@ -121,7 +137,6 @@ def hubmap_ensemble(model_list, image_root, pkl_path):
         model_level.append(results)
 
     num_models = len(model_level)
-    fused_masks = []
 
     ids = []
     heights = []
@@ -154,18 +169,17 @@ def hubmap_ensemble(model_list, image_root, pkl_path):
             scores,
             labels,
             weights=None,
-            iou_thr=0.5,
+            iou_thr=iou_thr,
             skip_box_thr=0.0001)
         fused = np.concatenate(
             [fused_box * img_dim,
              fused_score.reshape(-1, 1)], axis=1)
         # decode masks and stack masks and take mean
         # crop masks from bounding boxes
-        fused_masks = ensemble_masks_from_boxes(fused, masks, h, w)
-        assert len(fused) == len(fused_masks)
-        for n, (pred_box, pred_mask) in enumerate(zip(fused, fused_masks)):
+        encoded_strings = ensemble_masks_from_boxes(fused, masks, h, w)
+        assert len(fused) == len(encoded_strings)
+        for n, (pred_box, encoded) in enumerate(zip(fused, encoded_strings)):
             score = pred_box[-1]
-            encoded = encode_binary_mask(pred_mask)
             if n == 0:
                 pred_string += f"0 {score} {encoded.decode('utf-8')}"
             else:
