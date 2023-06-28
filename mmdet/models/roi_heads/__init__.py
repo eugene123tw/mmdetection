@@ -12,7 +12,7 @@ from .htc_roi_head import HybridTaskCascadeRoIHead
 from .mask_heads import (CoarseMaskHead, FCNMaskHead, FeatureRelayHead,
                          FusedSemanticHead, GlobalContextHead, GridHead,
                          HTCMaskHead, MaskIoUHead, MaskPointHead,
-                         SCNetMaskHead, SCNetSemanticHead)
+                         SCNetMaskHead, SCNetSemanticHead, CustomFCNMaskHead)
 from .mask_scoring_roi_head import MaskScoringRoIHead
 from .pisa_roi_head import PISARoIHead
 from .point_rend_roi_head import PointRendRoIHead
@@ -34,5 +34,6 @@ __all__ = [
     'SingleRoIExtractor', 'PISARoIHead', 'PointRendRoIHead', 'MaskPointHead',
     'CoarseMaskHead', 'DynamicRoIHead', 'SparseRoIHead', 'TridentRoIHead',
     'SCNetRoIHead', 'SCNetMaskHead', 'SCNetSemanticHead', 'SCNetBBoxHead',
-    'FeatureRelayHead', 'GlobalContextHead', 'DeepMACRoIHead'
+    'FeatureRelayHead', 'GlobalContextHead', 'DeepMACRoIHead',
+    'CustomFCNMaskHead',
 ]
