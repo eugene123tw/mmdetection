@@ -22,13 +22,12 @@ log_config = dict(
         dict(type='TextLoggerHook'),
         dict(
             type='MMDetWandbHook',
-            init_kwargs={'project': "ship-detection"},
+            init_kwargs={'project': 'ship-detection'},
             interval=10,
             log_checkpoint=True,
             log_checkpoint_metadata=True)
-    ]
-)
-load_from = "https://download.openmmlab.com/mmdetection/v2.0/vfnet/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-b5f6da5e.pth"
+    ])
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/vfnet/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-b5f6da5e.pth'
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 resume_from = None

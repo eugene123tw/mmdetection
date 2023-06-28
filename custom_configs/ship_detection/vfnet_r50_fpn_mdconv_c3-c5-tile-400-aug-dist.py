@@ -25,12 +25,11 @@ log_config = dict(
         dict(type='TextLoggerHook'),
         dict(
             type='MMDetWandbHook',
-            init_kwargs={'project': "ship-detection"},
+            init_kwargs={'project': 'ship-detection'},
             interval=10,
             log_checkpoint=True,
             log_checkpoint_metadata=True)
-    ]
-)
+    ])
 
 # custom_hooks = [dict(type='NumClassCheckHook')]
 dist_params = dict(backend='nccl')

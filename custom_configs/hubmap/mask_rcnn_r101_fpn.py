@@ -1,19 +1,16 @@
-_base_ = ["../_base_/datasets/hubmap.py"]
-
-data = dict(samples_per_gpu=8)
-
 model = dict(
     type='MaskRCNN',
     backbone=dict(
         type='ResNet',
-        depth=50,
+        depth=101,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=True,
         style='pytorch',
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
+        init_cfg=dict(type='Pretrained',
+                      checkpoint='torchvision://resnet101')),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -136,7 +133,7 @@ log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
 custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = 'https://download.openmmlab.com/mmdetection/v2.0/mask_rcnn/mask_rcnn_r50_fpn_mstrain-poly_3x_coco/mask_rcnn_r50_fpn_mstrain-poly_3x_coco_20210524_201154-21b550bb.pth'
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/mask_rcnn/mask_rcnn_r101_fpn_mstrain-poly_3x_coco/mask_rcnn_r101_fpn_mstrain-poly_3x_coco_20210524_200244-5675c317.pth'
 resume_from = None
 workflow = [('train', 1)]
 auto_resume = False

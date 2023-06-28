@@ -31,16 +31,15 @@ log_config = dict(
         dict(type='TextLoggerHook'),
         dict(
             type='MMDetWandbHook',
-            init_kwargs={'project': "ship-detection"},
+            init_kwargs={'project': 'ship-detection'},
             interval=10,
             log_checkpoint=False,
             log_checkpoint_metadata=False)
-    ]
-)
+    ])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = "https://download.openmmlab.com/mmdetection/v2.0/dyhead/atss_swin-l-p4-w12_fpn_dyhead_mstrain_2x_coco/atss_swin-l-p4-w12_fpn_dyhead_mstrain_2x_coco_20220509_100315-bc5b6516.pth"
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/dyhead/atss_swin-l-p4-w12_fpn_dyhead_mstrain_2x_coco/atss_swin-l-p4-w12_fpn_dyhead_mstrain_2x_coco_20220509_100315-bc5b6516.pth'
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0

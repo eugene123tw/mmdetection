@@ -18,6 +18,8 @@ import pycocotools.mask as maskUtils
 from PIL import Image, ImageTk
 from tqdm import trange
 
+from mmdet.core import PolygonMasks
+
 matplotlib.use('TkAgg')
 
 
@@ -122,6 +124,9 @@ class COCO_dataset:
 
         total_annotations = {}
 
+        if 'segmentation' in annotations[0]:
+            self.mask = True
+
         if has_anno:
             for a in annotations:
                 image_name = image_dict[a['image_id']][0].replace('.jpg', '')
@@ -132,6 +137,8 @@ class COCO_dataset:
                 single_ann.append(category_dict[idx])
                 single_ann.extend(list(map(int, a['bbox'])))
                 single_ann.extend([width, height])
+                if self.mask:
+                    single_ann.append(a['segmentation'][0])
 
                 if image_name not in total_annotations:
                     total_annotations[image_name] = []
@@ -221,7 +228,8 @@ class COCO_dataset:
             return None
 
     def get_img_by_name(self, name):
-        img = Image.open(os.path.join(self.img_root, name)).convert('RGB')
+        img = cv2.imread(os.path.join(self.img_root, name))
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         return img
 
     def get_img_by_index(self, idx):
@@ -577,7 +585,15 @@ class vis_tool:
 
             cv2.rectangle(img, (xmin, ymin), (xmax, ymax),
                           self.args.gt_box_color, 1)
-
+            if self.data_info.mask:
+                # draw polygon to img
+                contours = np.array(obj[-1]).reshape(-1)
+                contours = contours.astype(np.int32)
+                color_mask = np.random.randint(0, 256, (1, 3), dtype=np.uint8)
+                polygon_masks = PolygonMasks([[contours]], self.img_height,
+                                             self.img_width)
+                mask = polygon_masks.to_ndarray()[0]
+                img[mask] = img[mask] * 0.5 + color_mask * 0.5
         return img
 
     def get_iou(self, det):
@@ -789,7 +805,7 @@ class vis_tool:
                           name)
 
         img = self.data_info.get_img_by_name(name)
-        self.img_width, self.img_height = img.width, img.height
+        self.img_width, self.img_height = img.shape[1], img.shape[0]
 
         img = np.asarray(img)
 
@@ -1013,7 +1029,7 @@ class vis_tool:
     # ============================================
 
     def scale_img(self, img):
-        [s_w, s_h] = [1, 1]
+        [s_w, s_h] = [1.5, 1.5]
 
         # if window size is (1920, 1080),
         # the default max image size is (1440, 810)

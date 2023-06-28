@@ -2,19 +2,13 @@ _base_ = ['../../_base_/datasets/ship_detection_tile.py']
 
 samples_per_gpu = 4
 
-data_root = "/home/yuchunli/ship-detection-coco-fold-0/"
+data_root = '/home/yuchunli/ship-detection-coco-fold-0/'
 
 train_dataset = dict(
-    dataset=dict(
-        ann_file=data_root + 'annotations/instances_train.json',
-    ),
-)
+    dataset=dict(ann_file=data_root + 'annotations/instances_train.json', ), )
 
 val_dataset = dict(
-    dataset=dict(
-        ann_file=data_root + 'annotations/instances_val.json',
-    ),
-)
+    dataset=dict(ann_file=data_root + 'annotations/instances_val.json', ), )
 
 evaluation = dict(interval=1, metric='bbox', save_best='bbox_mAP_50')
 optimizer = dict(
@@ -38,13 +32,12 @@ log_config = dict(
         dict(type='TextLoggerHook'),
         dict(
             type='MMDetWandbHook',
-            init_kwargs={'project': "ship-detection"},
+            init_kwargs={'project': 'ship-detection'},
             interval=10,
             log_checkpoint=True,
             log_checkpoint_metadata=True)
-    ]
-)
-load_from = "https://download.openmmlab.com/mmdetection/v2.0/vfnet/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-b5f6da5e.pth"
+    ])
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/vfnet/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-b5f6da5e.pth'
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 resume_from = None

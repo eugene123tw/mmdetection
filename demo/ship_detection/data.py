@@ -8,7 +8,7 @@ import PIL
 from datumaro import AnnotationType, Bbox, DatasetItem, LabelCategories
 from datumaro.components.project import Dataset
 from datumaro.util.image import Image
-from sklearn.model_selection import train_test_split, KFold
+from sklearn.model_selection import KFold, train_test_split
 
 PIL.Image.MAX_IMAGE_PIXELS = 933120000
 
@@ -95,8 +95,10 @@ class ShipDetectionDataset:
             for index in val_indices:
                 dsitems[index].subset = f'val'
 
-            dataset = Dataset.from_iterable(dsitems, categories=self.categories)
-            dataset.export(f"{export_path}-fold-{fold}", 'coco', default_image_ext='.png')
+            dataset = Dataset.from_iterable(
+                dsitems, categories=self.categories)
+            dataset.export(
+                f'{export_path}-fold-{fold}', 'coco', default_image_ext='.png')
 
     def get_adaptive_tile_params(self, object_tile_ratio=0.01, rule='avg'):
         tile_cfg = dict(
@@ -145,7 +147,7 @@ if __name__ == '__main__':
     # dataset.make_fold(export_path="/home/yuchunli/_DATASET/ship-detection-coco/ship-detection-coco")
 
     dataset.make_coco_train(
-        export_path="/home/yuchunli/_DATASET/ship-detection-coco")
+        export_path='/home/yuchunli/_DATASET/ship-detection-coco')
 
     # dataset.make_coco_test(
     #     root='/home/yuchunli/_DATASET/ship-detection',
