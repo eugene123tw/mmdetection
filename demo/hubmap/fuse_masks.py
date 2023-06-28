@@ -1,148 +1,47 @@
-import base64
 import os
-import pickle
-import typing as t
-import zlib
 from pathlib import Path
 
 import cv2
 import mmcv
 import numpy as np
 import pandas as pd
-import pycocotools.mask as mask_util
-from ensemble_boxes_wbf import weighted_boxes_fusion
-from pycocotools import _mask as coco_mask
+from ensemble_boxes_wbf import weighted_boxes_masks_fusion
 
 from mmdet.apis import inference_detector, init_detector
-from mmdet.core import encode_mask_results
 
 BBOX_INDEX = 0
 MASK_INDEX = 1
 LABLE_INDEX = 1  # ONLY PICK BLOOD VESSEL
 
 
-def encode_binary_mask(mask: np.ndarray) -> t.Text:
-    """Converts a binary mask into OID challenge encoding ascii text."""
-
-    # check input mask --
-    if mask.dtype != np.bool:
-        raise ValueError(
-            'encode_binary_mask expects a binary mask, received dtype == %s' %
-            mask.dtype)
-
-    mask = np.squeeze(mask)
-    if len(mask.shape) != 2:
-        raise ValueError(
-            'encode_binary_mask expects a 2d mask, received shape == %s' %
-            mask.shape)
-
-    # convert input mask to expected COCO API input --
-    mask_to_encode = mask.reshape(mask.shape[0], mask.shape[1], 1)
-    mask_to_encode = mask_to_encode.astype(np.uint8)
-    mask_to_encode = np.asfortranarray(mask_to_encode)
-
-    # RLE encode mask --
-    encoded_mask = coco_mask.encode(mask_to_encode)[0]['counts']
-
-    # compress and base64 encoding --
-    binary_str = zlib.compress(encoded_mask, zlib.Z_BEST_COMPRESSION)
-    base64_str = base64.b64encode(binary_str)
-    return base64_str
-
-
-def single_model_inference(fnames,
-                           model_dict,
-                           output_path,
+def single_model_inference(fname,
+                           config,
+                           ckpt,
                            iou_thr=0.5,
                            score_thr=0.001,
                            max_num=100):
-    model_name = model_dict['name']
-    config_file = model_dict['config']
-    ckpt = model_dict['ckpt']
-
-    config = mmcv.Config.fromfile(config_file)
+    assert isinstance(fname, str), f'fname must be str, but got {type(fname)}'
     config.model.test_cfg.rcnn.nms.iou_threshold = iou_thr
     config.model.test_cfg.rcnn.score_thr = score_thr
     config.model.test_cfg.rcnn.max_per_img = max_num
+    config.model.roi_head.mask_head.type = 'CustomFCNMaskHead'
 
     model = init_detector(config, ckpt, device='cuda:0')
-    results = inference_detector(model, fnames)
-    for result in results:
-        cls_encoded_masks = encode_mask_results(result[MASK_INDEX])
-        for i, encoded_masks in enumerate(cls_encoded_masks):
-            result[MASK_INDEX][i] = encoded_masks
-    mmcv.dump(results, os.path.join(output_path, f'{model_name}.pkl'))
-
-
-def read_pkl(pkl_path):
-    with open(pkl_path, 'rb') as f:
-        data = pickle.load(f)
-    return data
-
-
-def ensemble_masks_from_boxes(fused_boxes,
-                              masks,
-                              img_h,
-                              img_w,
-                              mask_score_thres: float = 0.5):
-    """Ensemble masks from boxes.
-
-    Args:
-        fused_boxes (_type_):
-        masks (_type_): _description_
-        img_h (_type_): _description_
-        img_w (_type_): _description_
-        mask_score_thres (float, optional): _description_. Defaults to 0.5.
-
-    Returns:
-        _type_: _description_
-    """
-    encoded_string = []
-    for i, fused_box in enumerate(fused_boxes):
-        fused_mask = np.zeros((img_h, img_w), dtype=bool)
-        x1, y1, x2, y2, score = fused_box
-        x1 = int(x1)
-        y1 = int(y1)
-        x2 = int(x2)
-        y2 = int(y2)
-        vote_mask = np.zeros((y2 - y1, x2 - x1))
-        for j, mask in enumerate(masks):
-            mask = mask_util.decode(mask)
-            # crop mask from Model j
-            vote_mask += mask[y1:y2, x1:x2]
-
-        vote_mask = vote_mask / np.max(vote_mask)
-        vote_mask = vote_mask > mask_score_thres
-        kernel = np.ones(shape=(3, 3), dtype=np.uint8)
-        vote_mask = cv2.dilate(vote_mask.astype(np.uint8), kernel, 3)
-        fused_mask[y1:y2, x1:x2] = vote_mask
-        encoded_string.append(encode_binary_mask(fused_mask))
-    return encoded_string
+    results = inference_detector(model, fname)
+    return results
 
 
 def hubmap_ensemble(model_list,
                     image_root,
-                    pkl_path,
                     iou_thr=0.5,
                     score_thr=0.001,
                     max_num=100):
-    fnames = list(Path(image_root).glob('*.tif'))
-    for i, model_dict in enumerate(model_list):
-        single_model_inference(fnames, model_dict, pkl_path, iou_thr,
-                               score_thr, max_num)
-
-    model_level = []
-    for i, model_dict in enumerate(model_list):
-        results = read_pkl(os.path.join(pkl_path, f'{model_dict["name"]}.pkl'))
-        model_level.append(results)
-
-    num_models = len(model_level)
-
     ids = []
     heights = []
     widths = []
     prediction_strings = []
 
+    fnames = list(Path(image_root).glob('*.tif'))
     for i, fname in enumerate(fnames):
         h, w, c = cv2.imread(str(fname)).shape
         pred_string = ''
@@ -152,38 +51,38 @@ def hubmap_ensemble(model_list,
         scores = []
         labels = []
         masks = []
-        for j in range(num_models):
-            blood_vessel_bboxes = model_level[j][i][BBOX_INDEX][
-                LABLE_INDEX][:, :4]
-            blood_vessel_scores = model_level[j][i][BBOX_INDEX][LABLE_INDEX][:,
-                                                                             4]
-            blood_vessel_masks = model_level[j][i][MASK_INDEX][LABLE_INDEX]
+        for j, model_dict in enumerate(model_list):
+            config_file = model_dict['config']
+            ckpt = model_dict['ckpt']
+            config = mmcv.Config.fromfile(config_file)
+            results = single_model_inference(
+                str(fname), config, ckpt, iou_thr, score_thr, max_num)
 
+            num_pred = len(results[BBOX_INDEX][LABLE_INDEX])
             # NOTE: normalize bbox to [0, 1]
-            boxes.append(blood_vessel_bboxes / img_dim)
-            scores.append(blood_vessel_scores)
-            labels.append(len(blood_vessel_bboxes) * [0])
-            masks.extend(blood_vessel_masks)
-        fused_box, fused_score, fused_label = weighted_boxes_fusion(
+            boxes.append(results[BBOX_INDEX][LABLE_INDEX][:, :4] / img_dim)
+            scores.append(results[BBOX_INDEX][LABLE_INDEX][:, 4])
+            labels.append(num_pred * [0])
+            masks.append(np.stack(results[MASK_INDEX][LABLE_INDEX]))
+
+        fused_box, encoded_strings, fused_score, fused_label = weighted_boxes_masks_fusion(
             boxes,
+            masks,
             scores,
             labels,
+            img_h=h,
+            img_w=w,
             weights=None,
             iou_thr=iou_thr,
-            skip_box_thr=0.0001)
-        fused = np.concatenate(
-            [fused_box * img_dim,
-             fused_score.reshape(-1, 1)], axis=1)
-        # decode masks and stack masks and take mean
-        # crop masks from bounding boxes
-        encoded_strings = ensemble_masks_from_boxes(fused, masks, h, w)
-        assert len(fused) == len(encoded_strings)
-        for n, (pred_box, encoded) in enumerate(zip(fused, encoded_strings)):
-            score = pred_box[-1]
+            skip_box_thr=score_thr)
+
+        for n, (score,
+                encoded) in enumerate(zip(fused_score, encoded_strings)):
             if n == 0:
                 pred_string += f"0 {score} {encoded.decode('utf-8')}"
             else:
-                pred_string += f" 0 {score} {encoded.decode('utf-8')}"
+                if score > score_thr:
+                    pred_string += f" 0 {score} {encoded.decode('utf-8')}"
         ids.append(str(os.path.basename(fname)).split('.')[0].split('/')[-1])
         heights.append(h)
         widths.append(w)
@@ -193,7 +92,6 @@ def hubmap_ensemble(model_list,
 
 
 if __name__ == '__main__':
-    pkl_path = '/home/yuchunli/git/mmdetection/demo/hubmap/ensemble_pkls'
     image_root = '/home/yuchunli/git/mmdetection/demo/hubmap/samples'
 
     model_list = [{
@@ -210,10 +108,17 @@ if __name__ == '__main__':
         '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy4/mask_rcnn_r50_fpn_giou_loss_strategy4.py',
         'ckpt':
         '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy4/best_segm_mAP_epoch_12.pth'
+    }, {
+        'name':
+        'mask_rcnn_r101_fpn_strategy1',
+        'config':
+        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r101_fpn_strategy1/mask_rcnn_r101_fpn_strategy1.py',
+        'ckpt':
+        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r101_fpn_strategy1/best_segm_mAP_epoch_19.pth'
     }]
 
     ids, prediction_strings, heights, widths = hubmap_ensemble(
-        model_list, image_root, pkl_path)
+        model_list, image_root)
     submission = pd.DataFrame()
     submission['id'] = ids
     submission['height'] = heights

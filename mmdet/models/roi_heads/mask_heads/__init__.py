@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from .coarse_mask_head import CoarseMaskHead
+from .custom_fcn_mask_head import CustomFCNMaskHead
 from .deepmac_mask_head import DeepMacMaskHead
 from .dynamic_mask_head import DynamicMaskHead
 from .fcn_mask_head import FCNMaskHead
@@ -17,5 +18,5 @@ __all__ = [
     'FCNMaskHead', 'HTCMaskHead', 'FusedSemanticHead', 'GridHead',
     'MaskIoUHead', 'CoarseMaskHead', 'MaskPointHead', 'SCNetMaskHead',
     'SCNetSemanticHead', 'GlobalContextHead', 'FeatureRelayHead',
-    'DynamicMaskHead', 'DeepMacMaskHead'
+    'DynamicMaskHead', 'DeepMacMaskHead', 'CustomFCNMaskHead'
 ]

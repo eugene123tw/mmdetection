@@ -1,13 +1,47 @@
 __author__ = 'ZFTurbo: https://kaggle.com/zfturbo'
 
+import base64
+import typing as t
 import warnings
+import zlib
 
+import cv2
 import numpy as np
+from pycocotools import _mask as coco_mask
 
 
-def prefilter_boxes(boxes, scores, labels, weights, thr):
+def encode_binary_mask(mask: np.ndarray) -> t.Text:
+    """Converts a binary mask into OID challenge encoding ascii text."""
+
+    # check input mask --
+    if mask.dtype != np.bool:
+        raise ValueError(
+            'encode_binary_mask expects a binary mask, received dtype == %s' %
+            mask.dtype)
+
+    mask = np.squeeze(mask)
+    if len(mask.shape) != 2:
+        raise ValueError(
+            'encode_binary_mask expects a 2d mask, received shape == %s' %
+            mask.shape)
+
+    # convert input mask to expected COCO API input --
+    mask_to_encode = mask.reshape(mask.shape[0], mask.shape[1], 1)
+    mask_to_encode = mask_to_encode.astype(np.uint8)
+    mask_to_encode = np.asfortranarray(mask_to_encode)
+
+    # RLE encode mask --
+    encoded_mask = coco_mask.encode(mask_to_encode)[0]['counts']
+
+    # compress and base64 encoding --
+    binary_str = zlib.compress(encoded_mask, zlib.Z_BEST_COMPRESSION)
+    base64_str = base64.b64encode(binary_str)
+    return base64_str
+
+
+def prefilter_predictions(boxes, masks, scores, labels, weights, thr):
     # Create dict with boxes stored by its label
-    new_boxes = dict()
+    new_predictions = dict()
 
     for t in range(len(boxes)):
 
@@ -29,6 +63,7 @@ def prefilter_boxes(boxes, scores, labels, weights, thr):
                 continue
             label = int(labels[t][j])
             box_part = boxes[t][j]
+            mask_part = masks[t][j]
             x1 = box_part[0]
             y1 = box_part[1]
             x2 = box_part[2]
@@ -41,57 +76,38 @@ def prefilter_boxes(boxes, scores, labels, weights, thr):
             if y2 < y1:
                 warnings.warn('Y2 < Y1 value in box. Swap them.')
                 y1, y2 = y2, y1
-            if x1 < 0:
-                warnings.warn('X1 < 0 in box. Set it to 0.')
-                x1 = 0
-            if x1 > 1:
-                warnings.warn(
-                    'X1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.'
-                )
-                x1 = 1
-            if x2 < 0:
-                warnings.warn('X2 < 0 in box. Set it to 0.')
-                x2 = 0
-            if x2 > 1:
-                warnings.warn(
-                    'X2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.'
-                )
-                x2 = 1
-            if y1 < 0:
-                warnings.warn('Y1 < 0 in box. Set it to 0.')
-                y1 = 0
-            if y1 > 1:
-                warnings.warn(
-                    'Y1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.'
-                )
-                y1 = 1
-            if y2 < 0:
-                warnings.warn('Y2 < 0 in box. Set it to 0.')
-                y2 = 0
-            if y2 > 1:
-                warnings.warn(
-                    'Y2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.'
-                )
-                y2 = 1
+
+            x1 = np.maximum(x1, 0.0)
+            y1 = np.maximum(y1, 0.0)
+            x2 = np.minimum(x2, 1.0)
+            y2 = np.minimum(y2, 1.0)
+
             if (x2 - x1) * (y2 - y1) == 0.0:
                 warnings.warn('Zero area box skipped: {}.'.format(box_part))
                 continue
 
-            # [label, score, weight, model index, x1, y1, x2, y2]
+            # [label, score, weight, model_index, x1, y1, x2, y2, mask array]
             b = [
                 int(label),
-                float(score) * weights[t], weights[t], t, x1, y1, x2, y2
+                float(score) * weights[t], weights[t], t, x1, y1, x2, y2,
+                mask_part
             ]
-            if label not in new_boxes:
-                new_boxes[label] = []
-            new_boxes[label].append(b)
+            if label not in new_predictions:
+                new_predictions[label] = []
+            new_predictions[label].append(b)
 
     # Sort each list in dict by score and transform it to numpy array
-    for k in new_boxes:
-        current_boxes = np.array(new_boxes[k])
-        new_boxes[k] = current_boxes[current_boxes[:, 1].argsort()[::-1]]
+    for k in new_predictions:
+        current_boxes = np.array(new_predictions[k])
+        new_predictions[k] = current_boxes[current_boxes[:, 1].argsort()[::-1]]
 
-    return new_boxes
+    return new_predictions
+
+
+def resize_mask(mask, w, h):
+    mask = np.pad(mask, ((1, 1), (1, 1)), 'constant', constant_values=0)
+    mask = cv2.resize(mask.astype(np.float32), (w, h))
+    return mask
 
 
 def get_weighted_box(boxes, conf_type='avg'):
@@ -107,6 +123,7 @@ def get_weighted_box(boxes, conf_type='avg'):
     conf_list = []
     w = 0
     for b in boxes:
+        b = b.astype(np.float32)
         box[4:] += (b[1] * b[4:])
         conf += b[1]
         conf_list.append(b[1])
@@ -166,14 +183,52 @@ def find_matching_box_fast(boxes_list, new_box, match_iou):
     return best_idx, best_iou
 
 
-def weighted_boxes_fusion(boxes_list,
-                          scores_list,
-                          labels_list,
-                          weights=None,
-                          iou_thr=0.55,
-                          skip_box_thr=0.0,
-                          conf_type='avg',
-                          allows_overflow=False):
+def weighted_mask_fusion(
+    weighted_boxes,
+    box_cluster,
+    mask_cluster,
+    img_h,
+    img_w,
+):
+    assert len(weighted_boxes) == len(box_cluster) == len(mask_cluster)
+    weighted_masks = []
+    for weighted_box, boxes, masks in zip(weighted_boxes, box_cluster,
+                                          mask_cluster):
+        fused_mask = np.zeros((img_h, img_w), dtype=np.float32)
+        num_samples = len(boxes)
+        for box, mask in zip(boxes, masks):
+            score = box[1]
+            x1, y1, x2, y2 = box[4:]
+            x1 = int(x1 * img_w)
+            y1 = int(y1 * img_h)
+            x2 = int(x2 * img_w)
+            y2 = int(y2 * img_h)
+            mask = resize_mask(mask, x2 - x1, y2 - y1)
+            # fused_mask[y1:y2, x1:x2] += mask * score
+            fused_mask[y1:y2, x1:x2] += mask
+        kernel = np.ones(shape=(3, 3), dtype=np.uint8)
+        fused_mask = cv2.dilate(fused_mask.astype(np.uint8), kernel, 3)
+        # NOTE: we can use weighted box score as threshold or we can use 0.5 as threshold
+        # NOTE: what is the best threshold?
+        bit_mask = (fused_mask / num_samples) >= 0.1
+        if bit_mask.max() != 1:
+            raise ValueError('fused mask max value is not 1')
+        encoded = encode_binary_mask(bit_mask.astype(bool))
+        weighted_masks.append(encoded)
+    return weighted_masks
+
+
+def weighted_boxes_masks_fusion(boxes_list,
+                                mask_list,
+                                scores_list,
+                                labels_list,
+                                img_h,
+                                img_w,
+                                weights=None,
+                                iou_thr=0.55,
+                                skip_box_thr=0.0,
+                                conf_type='avg',
+                                allows_overflow=False):
     '''
     :param boxes_list: list of boxes predictions from each model, each box is 4 numbers.
     It has 3 dimensions (models_number, model_preds, 4)
@@ -191,6 +246,7 @@ def weighted_boxes_fusion(boxes_list,
     :param allows_overflow: false if we want confidence score not exceed 1.0
 
     :return: boxes: boxes coordinates (Order of boxes: x1, y1, x2, y2).
+    :return: masks: encoded masks for each box
     :return: scores: confidence scores
     :return: labels: boxes labels
     '''
@@ -212,29 +268,34 @@ def weighted_boxes_fusion(boxes_list,
             .format(conf_type))
         exit()
 
-    filtered_boxes = prefilter_boxes(boxes_list, scores_list, labels_list,
-                                     weights, skip_box_thr)
-    if len(filtered_boxes) == 0:
-        return np.zeros((0, 4)), np.zeros((0, )), np.zeros((0, ))
+    filtered_predictions = prefilter_predictions(boxes_list, mask_list,
+                                                 scores_list, labels_list,
+                                                 weights, skip_box_thr)
+    if len(filtered_predictions) == 0:
+        return np.zeros((0, 4)), np.zeros((0, )), np.zeros((0, )), []
 
     overall_boxes = []
-    for label in filtered_boxes:
-        boxes = filtered_boxes[label]
+    for label in filtered_predictions:
+        predictions = filtered_predictions[label]
         new_boxes = []
+        new_masks = []
         weighted_boxes = np.empty((0, 8))
 
         # Clusterize boxes
-        for j in range(0, len(boxes)):
-            index, best_iou = find_matching_box_fast(weighted_boxes, boxes[j],
-                                                     iou_thr)
+        for j in range(0, len(predictions)):
+            index, best_iou = find_matching_box_fast(weighted_boxes,
+                                                     predictions[j], iou_thr)
 
             if index != -1:
-                new_boxes[index].append(boxes[j])
+                new_boxes[index].append(predictions[j][:-1])
+                new_masks[index].append(predictions[j][-1])
                 weighted_boxes[index] = get_weighted_box(
                     new_boxes[index], conf_type)
             else:
-                new_boxes.append([boxes[j].copy()])
-                weighted_boxes = np.vstack((weighted_boxes, boxes[j].copy()))
+                new_masks.append([predictions[j][-1]])
+                new_boxes.append([predictions[j][:-1]])
+                weighted_boxes = np.vstack(
+                    (weighted_boxes, predictions[j][:-1]))
 
         # Rescale confidence based on number of models and boxes
         for i in range(len(new_boxes)):
@@ -269,9 +330,15 @@ def weighted_boxes_fusion(boxes_list,
                 weighted_boxes[i, 1] = weighted_boxes[i, 1] * len(
                     clustered_boxes) / weights.sum()
         overall_boxes.append(weighted_boxes)
+
     overall_boxes = np.concatenate(overall_boxes, axis=0)
-    overall_boxes = overall_boxes[overall_boxes[:, 1].argsort()[::-1]]
-    boxes = overall_boxes[:, 4:]
+    encoded_masks = weighted_mask_fusion(overall_boxes, new_boxes, new_masks,
+                                         img_h, img_w)
+
+    sorted_idx = np.argsort(overall_boxes[:, 1])[::-1]
+    overall_boxes = overall_boxes[sorted_idx]
+    encoded_masks = [encoded_masks[i] for i in sorted_idx]
+    predictions = overall_boxes[:, 4:]
     scores = overall_boxes[:, 1]
     labels = overall_boxes[:, 0]
-    return boxes, scores, labels
+    return predictions, encoded_masks, scores, labels
