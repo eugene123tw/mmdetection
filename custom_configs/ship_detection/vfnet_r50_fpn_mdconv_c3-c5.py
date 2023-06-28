@@ -20,7 +20,7 @@ log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
 # custom_hooks = [dict(type='NumClassCheckHook')]
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/home/yuchunli/_MODELS/mmdet/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-6879c318.pth'
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/vfnet/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco/vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-6879c318.pth'
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0

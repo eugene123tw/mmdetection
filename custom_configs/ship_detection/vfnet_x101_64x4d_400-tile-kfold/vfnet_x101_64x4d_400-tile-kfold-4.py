@@ -1,14 +1,4 @@
-_base_ = ['../../_base_/datasets/ship_detection_tile.py']
-
-samples_per_gpu = 4
-
-data_root = '/home/yuchunli/ship-detection-coco-fold-2/'
-
-train_dataset = dict(
-    dataset=dict(ann_file=data_root + 'annotations/instances_train.json', ), )
-
-val_dataset = dict(
-    dataset=dict(ann_file=data_root + 'annotations/instances_val.json', ), )
+_base_ = ['../../_base_/datasets/ship_detection_tile-fold-4.py']
 
 evaluation = dict(interval=1, metric='bbox', save_best='bbox_mAP_50')
 optimizer = dict(
@@ -34,8 +24,8 @@ log_config = dict(
             type='MMDetWandbHook',
             init_kwargs={'project': 'ship-detection'},
             interval=10,
-            log_checkpoint=True,
-            log_checkpoint_metadata=True)
+            log_checkpoint=False,
+            log_checkpoint_metadata=False)
     ])
 load_from = 'https://download.openmmlab.com/mmdetection/v2.0/vfnet/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco/vfnet_x101_64x4d_fpn_mdconv_c3-c5_mstrain_2x_coco_20201027pth-b5f6da5e.pth'
 dist_params = dict(backend='nccl')
@@ -72,7 +62,7 @@ model = dict(
         relu_before_extra_convs=True),
     bbox_head=dict(
         type='VFNetHead',
-        num_classes=80,
+        num_classes=1,
         in_channels=256,
         stacked_convs=3,
         feat_channels=256,
@@ -99,7 +89,6 @@ model = dict(
         nms_pre=1000,
         min_bbox_size=0,
         score_thr=0.05,
-        nms=dict(type='nms', iou_threshold=0.45),
-        max_per_img=600))
+        nms=dict(type='nms', iou_threshold=0.6),
+        max_per_img=500))
 auto_resume = False
-gpu_ids = [0]
