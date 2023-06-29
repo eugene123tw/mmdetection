@@ -91,9 +91,9 @@ class ShipDetectionDataset:
         kf = KFold(n_splits=fold, shuffle=True, random_state=42)
         for fold, (train_indices, val_indices) in enumerate(kf.split(dsitems)):
             for index in train_indices:
-                dsitems[index].subset = f'train'
+                dsitems[index].subset = 'train'
             for index in val_indices:
-                dsitems[index].subset = f'val'
+                dsitems[index].subset = 'val'
 
             dataset = Dataset.from_iterable(
                 dsitems, categories=self.categories)

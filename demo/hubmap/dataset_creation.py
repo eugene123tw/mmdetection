@@ -112,9 +112,9 @@ class HuBMAPVasculatureDataset:
         folds = []
         for fold, (train_indices, val_indices) in enumerate(kf.split(dsitems)):
             for index in train_indices:
-                dsitems[index].subset = f'train'
+                dsitems[index].subset = 'train'
             for index in val_indices:
-                dsitems[index].subset = f'val'
+                dsitems[index].subset = 'val'
             folds.append(dsitems)
         return folds
 

@@ -32,7 +32,6 @@ def fuse_prediction(pkl_paths, output, json_anno):
     num_imgs = len(model_level[0])
     num_models = len(model_level)
     fused_boxes = []
-    fused_scores = []
     for i in range(num_imgs):
         boxes = []
         scores = []

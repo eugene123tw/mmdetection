@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from argparse import ArgumentParser
 
-import cv2
 import numpy as np
 
 from mmdet.apis import inference_detector, init_detector, show_result_pyplot

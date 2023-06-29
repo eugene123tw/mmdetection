@@ -63,7 +63,10 @@ def hubmap_ensemble(model_list,
             boxes.append(results[BBOX_INDEX][LABLE_INDEX][:, :4] / img_dim)
             scores.append(results[BBOX_INDEX][LABLE_INDEX][:, 4])
             labels.append(num_pred * [0])
-            masks.append(np.stack(results[MASK_INDEX][LABLE_INDEX]))
+            if len(results[MASK_INDEX][LABLE_INDEX]):
+                masks.append(np.stack(results[MASK_INDEX][LABLE_INDEX]))
+            else:
+                masks.append([])
 
         encoded_strings, fused_score = weighted_boxes_masks_fusion(
             boxes,
@@ -92,33 +95,37 @@ def hubmap_ensemble(model_list,
 
 
 if __name__ == '__main__':
-    image_root = '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-fold-1/images/train'
+    image_root = '/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature/train'
 
-    model_list = [{
-        'name':
-        'mask_rcnn_r50_fpn_2x_hubmap_giou_loss',
-        'config':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/mask_rcnn_r50_fpn_2x_hubmap_giou_loss.py',
-        'ckpt':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/best_segm_mAP_epoch_20.pth'
-    }, {
-        'name':
-        'mask_rcnn_r50_fpn_giou_loss_strategy4',
-        'config':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy4/mask_rcnn_r50_fpn_giou_loss_strategy4.py',
-        'ckpt':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy4/best_segm_mAP_epoch_12.pth'
-    }, {
-        'name':
-        'mask_rcnn_r101_fpn_strategy1',
-        'config':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r101_fpn_strategy1/mask_rcnn_r101_fpn_strategy1.py',
-        'ckpt':
-        '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r101_fpn_strategy1/best_segm_mAP_epoch_19.pth'
-    }]
+    model_list = [
+        {
+            'name':
+            'mask_rcnn_r50_fpn_2x_hubmap_giou_loss',
+            'config':
+            '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/mask_rcnn_r50_fpn_2x_hubmap_giou_loss.py',
+            'ckpt':
+            '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/best_segm_mAP_epoch_20.pth'
+        },
+        {
+            'name':
+            'mask_rcnn_r101_fpn_strategy1',
+            'config':
+            '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r101_fpn_strategy1/mask_rcnn_r101_fpn_strategy1.py',
+            'ckpt':
+            '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r101_fpn_strategy1/best_segm_mAP_epoch_19.pth'
+        },
+        # {
+        #     'name':
+        #     'mask_rcnn_r101_fpn_strategy1',
+        #     'config':
+        #     '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r101_fpn_strategy1/mask_rcnn_r101_fpn_strategy1.py',
+        #     'ckpt':
+        #     '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r101_fpn_strategy1/best_segm_mAP_epoch_19.pth'
+        # }
+    ]
 
     ids, prediction_strings, heights, widths = hubmap_ensemble(
-        model_list, image_root)
+        model_list, image_root, iou_thr=0.6, score_thr=0.001, max_num=1000)
     submission = pd.DataFrame()
     submission['id'] = ids
     submission['height'] = heights
