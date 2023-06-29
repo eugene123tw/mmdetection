@@ -65,7 +65,7 @@ def hubmap_ensemble(model_list,
             labels.append(num_pred * [0])
             masks.append(np.stack(results[MASK_INDEX][LABLE_INDEX]))
 
-        fused_box, encoded_strings, fused_score, fused_label = weighted_boxes_masks_fusion(
+        encoded_strings, fused_score = weighted_boxes_masks_fusion(
             boxes,
             masks,
             scores,
@@ -92,7 +92,7 @@ def hubmap_ensemble(model_list,
 
 
 if __name__ == '__main__':
-    image_root = '/home/yuchunli/git/mmdetection/demo/hubmap/samples'
+    image_root = '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-fold-1/images/train'
 
     model_list = [{
         'name':
