@@ -192,34 +192,33 @@ def weighted_mask_fusion(
 ):
     assert len(weighted_boxes) == len(box_cluster) == len(mask_cluster)
     weighted_masks = []
-    new_scores = []
+    scores = []
     for i, (weighted_box, boxes, masks) in enumerate(
             zip(weighted_boxes, box_cluster, mask_cluster)):
         fused_mask = np.zeros((img_h, img_w), dtype=np.float32)
         num_samples = len(boxes)
-        conf = 0
+        score = weighted_box[1]
         for box, mask in zip(boxes, masks):
-            score = box[1]
             x1, y1, x2, y2 = box[4:]
             x1 = int(x1 * img_w)
             y1 = int(y1 * img_h)
             x2 = int(x2 * img_w)
             y2 = int(y2 * img_h)
             mask = resize_mask(mask, x2 - x1, y2 - y1)
-            fused_mask[y1:y2, x1:x2] += mask * score
-            conf += score
-            # fused_mask[y1:y2, x1:x2] += mask
-        # kernel = np.ones(shape=(3, 3), dtype=np.uint8)
-        # fused_mask = cv2.dilate(fused_mask, kernel, 3)
-        # NOTE: we can use weighted box score as threshold or we can use 0.5 as threshold
-        # NOTE: what is the best threshold?
-        bit_mask = (fused_mask / conf) >= 0.5
+            fused_mask[y1:y2, x1:x2] += mask
+
+        bit_mask = (fused_mask / num_samples) >= 0.01
+
+        kernel = np.ones(shape=(3, 3), dtype=np.uint8)
+        bit_mask = cv2.dilate(bit_mask.astype(np.uint8), kernel, 3)
+        bit_mask = bit_mask.astype(bool)
         if bit_mask.sum() == 0:
             warnings.warn('Zero area mask skipped.')
         else:
-            new_scores.append(conf / num_samples)
-            weighted_masks.append(encode_binary_mask(bit_mask.astype(bool)))
-    return weighted_masks, new_scores
+            scores.append(score)
+            encoded = encode_binary_mask(bit_mask)
+            weighted_masks.append(encoded)
+    return weighted_masks, scores
 
 
 def weighted_boxes_masks_fusion(boxes_list,
@@ -336,11 +335,10 @@ def weighted_boxes_masks_fusion(boxes_list,
         overall_boxes.append(weighted_boxes)
 
     overall_boxes = np.concatenate(overall_boxes, axis=0)
-    encoded_masks, mask_scores = weighted_mask_fusion(overall_boxes, new_boxes,
-                                                      new_masks, img_h, img_w)
+    encoded_masks, scores = weighted_mask_fusion(overall_boxes, new_boxes,
+                                                 new_masks, img_h, img_w)
 
-    sorted_idx = np.argsort(mask_scores)[::-1]
-
-    encoded_masks = [encoded_masks[i] for i in sorted_idx]
-    mask_scores = np.array(mask_scores)[sorted_idx]
-    return encoded_masks, mask_scores
+    sorted_idx = np.argsort(scores)[::-1]
+    encoded_masks = np.array(encoded_masks)[sorted_idx]
+    scores = np.array(scores)[sorted_idx]
+    return encoded_masks, scores

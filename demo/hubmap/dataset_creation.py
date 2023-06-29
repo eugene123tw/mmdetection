@@ -107,6 +107,23 @@ class HuBMAPVasculatureDataset:
                     dsitems.append(dsitem)
         return dsitems
 
+    def strategy_5(self):
+        """Train on wsi 3, 4 + dataset 2, test on wsi 1,2 + dataset 1."""
+        dsitems = []
+        for index, row in self.df.iterrows():
+            if self.dsitem_dict.get(row['id']) is not None:
+                dsitem = self.dsitem_dict[row['id']]
+                if row['dataset'] == 2:
+                    if row['source_wsi'] == 3 or row['source_wsi'] == 4:
+                        dsitem.subset = 'train'
+                        dsitems.append(dsitem)
+
+                if row['dataset'] == 1:
+                    if row['source_wsi'] == 1 or row['source_wsi'] == 2:
+                        dsitem.subset = 'val'
+                        dsitems.append(dsitem)
+        return dsitems
+
     def make_coco_split(self, dsitems, n_folds=5):
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
         folds = []
@@ -133,8 +150,8 @@ if __name__ == '__main__':
     )
     # dsitems = dataset.strategy_1()
     # dsitems = dataset.strategy_2()
-    dsitems = dataset.strategy_4()
+    dsitems = dataset.strategy_5()
     dataset.export(
         dsitems,
-        export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-strategy_4'
+        export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-strategy_5'
     )

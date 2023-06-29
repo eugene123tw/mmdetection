@@ -79,13 +79,14 @@ def hubmap_ensemble(model_list,
             iou_thr=iou_thr,
             skip_box_thr=score_thr)
 
-        for n, (score,
-                encoded) in enumerate(zip(fused_score, encoded_strings)):
-            if n == 0:
-                pred_string += f"0 {score} {encoded.decode('utf-8')}"
-            else:
-                if score > score_thr:
+        count = 0
+        for score, encoded in zip(fused_score, encoded_strings):
+            if score >= score_thr:
+                if count == 0:
+                    pred_string += f"0 {score} {encoded.decode('utf-8')}"
+                else:
                     pred_string += f" 0 {score} {encoded.decode('utf-8')}"
+                count += 1
         ids.append(str(os.path.basename(fname)).split('.')[0].split('/')[-1])
         heights.append(h)
         widths.append(w)
