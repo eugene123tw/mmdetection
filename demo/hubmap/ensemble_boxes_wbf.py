@@ -342,5 +342,5 @@ def weighted_boxes_masks_fusion(boxes_list,
     sorted_idx = np.argsort(mask_scores)[::-1]
 
     encoded_masks = [encoded_masks[i] for i in sorted_idx]
-    mask_scores = mask_scores[sorted_idx]
+    mask_scores = np.array(mask_scores)[sorted_idx]
     return encoded_masks, mask_scores
