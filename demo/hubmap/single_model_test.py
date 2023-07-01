@@ -1,5 +1,5 @@
+import glob
 import os
-from pathlib import Path
 
 import cv2
 import mmcv
@@ -47,21 +47,23 @@ def encode_binary_mask(mask: np.ndarray) -> t.Text:
   return base64_str
 
 
-def single_model_inference(fname,
-                           config,
-                           ckpt,
-                           iou_thr=0.5,
-                           score_thr=0.001,
-                           max_num=100):
-    assert isinstance(fname, str), f'fname must be str, but got {type(fname)}'
-    config.model.test_cfg.rcnn.nms.iou_threshold = iou_thr
-    config.model.test_cfg.rcnn.score_thr = score_thr
-    config.model.test_cfg.rcnn.max_per_img = max_num
-    config.model.roi_head.mask_head.type = 'CustomFCNMaskHead'
+def initialize_detector(config,
+                        ckpt,
+                        iou_thr=0.5,
+                        score_thr=0.001,
+                        max_num=100):
+    if 'rcnn' in config.model.test_cfg:
+        # Mask RCNN
+        config.model.test_cfg.rcnn.nms.iou_threshold = iou_thr
+        config.model.test_cfg.rcnn.score_thr = score_thr
+        config.model.test_cfg.rcnn.max_per_img = max_num
+    else:
+        # SOLOv2
+        config.model.test_cfg.score_thr = score_thr
+        config.model.test_cfg.max_per_img = max_num
 
     model = init_detector(config, ckpt, device='cuda:0')
-    results = inference_detector(model, fname)
-    return results
+    return model
 
 
 def hubmap_single_model(
@@ -75,17 +77,17 @@ def hubmap_single_model(
     widths = []
     prediction_strings = []
 
-    fnames = list(Path(image_root).glob('*.tif'))
+    fnames = glob.glob(image_root + '/*.tif')
     config_file = model_dict['config']
     ckpt = model_dict['ckpt']
     config = mmcv.Config.fromfile(config_file)
-    results = single_model_inference(
-        fnames, config, ckpt, iou_thr, score_thr, max_num)
+    detector = initialize_detector(config, ckpt, iou_thr, score_thr, max_num)
 
-    results = results[LABLE_INDEX]
-    for fname, result in zip(fnames, results):
+    for fname in fnames:
+        result = inference_detector(detector, fname)
         id = os.path.splitext(os.path.basename(fname))[0]
         bboxes, masks = result
+        bboxes, masks = bboxes[LABLE_INDEX], masks[LABLE_INDEX]
 
         pred_string = ''
         num_predictions = bboxes.shape[0]
@@ -109,6 +111,7 @@ def hubmap_single_model(
 
         height, width = cv2.imread(str(fname)).shape[:2]
         ids.append(id)
+        prediction_strings.append(pred_string)
         heights.append(height)
         widths.append(width)
 
@@ -116,12 +119,12 @@ def hubmap_single_model(
 
 
 if __name__ == '__main__':
-    image_root = '/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature/train'
+    image_root = '/home/yuchunli/git/mmdetection/demo/hubmap/samples'
 
     model_dict = {
-        'name': 'mask_rcnn_r50_fpn_2x_hubmap_giou_loss',
-        'config': '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/mask_rcnn_r50_fpn_2x_hubmap_giou_loss.py',
-        'ckpt': '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_2x_hubmap_giou_loss/best_segm_mAP_epoch_20.pth'
+        'name': 'solov2_x101_dcn_fpn_s1',
+        'config': 'work_dirs/solov2_x101_dcn_fpn_s1/solov2_x101_dcn_fpn_s1.py',
+        'ckpt': 'work_dirs/solov2_x101_dcn_fpn_s1/epoch_24.pth'
     }
 
     ids, prediction_strings, heights, widths = hubmap_single_model(

@@ -64,11 +64,6 @@ class CustomFCNMaskHead(FCNMaskHead):
 
         for i in range(N):
             mask = mask_pred[i]
-            if threshold >= 0:
-                mask = (mask >= threshold).to(dtype=torch.bool)
-            else:
-                # for visualization and debugging
-                mask = (mask * 255).to(dtype=torch.uint8)
             mask = mask.detach().cpu().numpy()
             cls_segms[labels[i]].append(mask[0])
         return cls_segms
