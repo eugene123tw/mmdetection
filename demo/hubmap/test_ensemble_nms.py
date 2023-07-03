@@ -9,11 +9,10 @@ import mmcv
 import numpy as np
 import pandas as pd
 import pycocotools.mask as mask_util
-from ensemble_boxes_wbf import weighted_boxes_fusion
+from mmcv.ops import nms
 from pycocotools import _mask as coco_mask
 
 from mmdet.apis import inference_detector, init_detector
-from mmdet.core import encode_mask_results
 
 BBOX_INDEX = 0
 MASK_INDEX = 1
@@ -68,46 +67,46 @@ def init_model(model_dict, iou_thr=0.5, score_thr=0.001, max_num=100):
     return detector
 
 
-def ensemble_masks_from_boxes(fused_boxes,
-                              masks,
-                              img_h,
-                              img_w,
-                              mask_score_thres: float = 0.5):
+def ensemble_masks(boxes,
+                   scores,
+                   masks,
+                   iou_thr=0.6,
+                   score_thr=0.001,
+                   max_num=100,
+                   mask_score_thres=0.5):
     """Ensemble masks from boxes.
 
     Args:
         fused_boxes (_type_):
         masks (_type_): _description_
-        img_h (_type_): _description_
-        img_w (_type_): _description_
+        scores (_type_): _description_
+        iou_thr (float): iou_thr
         mask_score_thres (float, optional): _description_. Defaults to 0.5.
+        max_num (int):
 
     Returns:
         _type_: _description_
     """
     encoded_string = []
-    scores = []
-    for i, fused_box in enumerate(fused_boxes):
-        fused_mask = np.zeros((img_h, img_w), dtype=bool)
-        x1, y1, x2, y2, score = fused_box
-        x1 = int(x1)
-        y1 = int(y1)
-        x2 = int(x2)
-        y2 = int(y2)
-        vote_mask = np.zeros((y2 - y1, x2 - x1))
-        for j, mask in enumerate(masks):
-            # crop mask from Model j
-            vote_mask += mask[y1:y2, x1:x2]
+    ensemble_scores = []
 
-        vote_mask = vote_mask / np.max(vote_mask)
-        vote_mask = vote_mask > mask_score_thres
-        kernel = np.ones(shape=(3, 3), dtype=np.uint8)
-        vote_mask = cv2.dilate(vote_mask.astype(np.uint8), kernel, 3)
-        fused_mask[y1:y2, x1:x2] = vote_mask
-        if np.sum(fused_mask) > 0:
-            scores.append(score)
-            encoded_string.append(encode_binary_mask(fused_mask))
-    return encoded_string, scores
+    dets, inds = nms(
+        boxes,
+        scores,
+        iou_threshold=iou_thr,
+        score_threshold=score_thr,
+        max_num=1000)
+
+    masks = masks[inds]
+
+    for box, mask in zip(dets, masks):
+        if mask.sum() > 0:
+            score = box[-1]
+            kernel = np.ones(shape=(3, 3), dtype=np.uint8)
+            mask = cv2.dilate(mask.astype(np.uint8), kernel, 3)
+            encoded_string.append(encode_binary_mask(mask.astype(bool)))
+            ensemble_scores.append(score)
+    return encoded_string, ensemble_scores
 
 
 def hubmap_ensemble(model_list,
@@ -122,41 +121,39 @@ def hubmap_ensemble(model_list,
     widths = []
     prediction_strings = []
 
-    detectors = [init_model(model_dict, iou_thr, score_thr, max_num) for model_dict in model_list]
+    detectors = [
+        init_model(model_dict, iou_thr, score_thr, max_num)
+        for model_dict in model_list
+    ]
 
     for i, fname in enumerate(fnames):
         h, w, c = cv2.imread(str(fname)).shape
         pred_string = ''
-        img_dim = np.array([w, h, w, h])
         aggregate_boxes = []
         aggregate_scores = []
         aggregate_labels = []
         aggregate_masks = []
-        for dectector in detectors:
-            result = inference_detector(dectector, str(fname))
+        for detector in detectors:
+            result = inference_detector(detector, str(fname))
             blood_vessel_bboxes = result[BBOX_INDEX][LABLE_INDEX][:, :4]
             blood_vessel_scores = result[BBOX_INDEX][LABLE_INDEX][:, -1]
             blood_vessel_masks = result[MASK_INDEX][LABLE_INDEX]
 
-            # NOTE: normalize bbox to [0, 1]
-            aggregate_boxes.append(blood_vessel_bboxes / img_dim)
+            aggregate_boxes.append(blood_vessel_bboxes)
             aggregate_scores.append(blood_vessel_scores)
             aggregate_labels.append(len(blood_vessel_bboxes) * [0])
             aggregate_masks.extend(blood_vessel_masks)
-        fused_box, fused_score, fused_label = weighted_boxes_fusion(
-            aggregate_boxes,
-            aggregate_scores,
-            aggregate_labels,
-            weights=None,
-            iou_thr=iou_thr,
-            skip_box_thr=0.0001)
-        fused = np.concatenate(
-            [fused_box * img_dim,
-             fused_score.reshape(-1, 1)], axis=1)
-        # decode masks and stack masks and take mean
-        # crop masks from bounding boxes
-        encoded_strings, scores = ensemble_masks_from_boxes(fused, aggregate_masks, h, w)
-        assert len(fused) == len(encoded_strings)
+
+        aggregate_boxes = np.vstack(aggregate_boxes)
+        aggregate_scores = np.hstack(aggregate_scores)
+        aggregate_masks = np.stack(aggregate_masks)
+
+        encoded_strings, scores = ensemble_masks(aggregate_boxes,
+                                                 aggregate_scores,
+                                                 aggregate_masks, iou_thr,
+                                                 score_thr, max_num)
+        assert len(encoded_strings) == len(
+            scores), 'Length of encoded strings and scores should be the same.'
         n = 0
         for score, encoded in zip(scores, encoded_strings):
             if score > score_thr:
@@ -178,14 +175,20 @@ if __name__ == '__main__':
 
     model_list = [
         {
-            'name': 'solov2_x101_dcn_fpn_hubmap_s5_best',
-            'config': '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy5/mask_rcnn_r50_fpn_giou_loss_strategy5.py',
-            'ckpt':'/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy5/epoch_5.pth'
+            'name':
+            'mask_rcnn_r50_fpn_giou_loss_strategy5',
+            'config':
+            'work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy5/mask_rcnn_r50_fpn_giou_loss_strategy5.py',
+            'ckpt':
+            'work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy5/best_segm_mAP_epoch_14.pth'
         },
         {
-            'name': 'solov2_x101_dcn_fpn_hubmap_s5_best',
-            'config': '/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy5/mask_rcnn_r50_fpn_giou_loss_strategy5.py',
-            'ckpt':'/home/yuchunli/git/mmdetection/work_dirs/mask_rcnn_r50_fpn_giou_loss_strategy5/epoch_1.pth'
+            'name':
+            'point_rend_r50_caffe_fpn_hubmap_s5',
+            'config':
+            'work_dirs/point_rend_r50_caffe_fpn_hubmap_s5/point_rend_r50_caffe_fpn_hubmap_s5.py',
+            'ckpt':
+            'work_dirs/point_rend_r50_caffe_fpn_hubmap_s5/best_segm_mAP_epoch_19.pth'
         },
     ]
 

@@ -1,17 +1,16 @@
+import base64
 import glob
 import os
+import typing as t
+import zlib
 
 import cv2
 import mmcv
 import numpy as np
 import pandas as pd
+from pycocotools import _mask as coco_mask
 
 from mmdet.apis import inference_detector, init_detector
-
-import base64
-from pycocotools import _mask as coco_mask
-import typing as t
-import zlib
 
 BBOX_INDEX = 0
 MASK_INDEX = 1
@@ -19,32 +18,32 @@ LABLE_INDEX = 1  # ONLY PICK BLOOD VESSEL
 
 
 def encode_binary_mask(mask: np.ndarray) -> t.Text:
-  """Converts a binary mask into OID challenge encoding ascii text."""
+    """Converts a binary mask into OID challenge encoding ascii text."""
 
-  # check input mask --
-  if mask.dtype != np.bool:
-    raise ValueError(
-        "encode_binary_mask expects a binary mask, received dtype == %s" %
-        mask.dtype)
+    # check input mask --
+    if mask.dtype != np.bool:
+        raise ValueError(
+            'encode_binary_mask expects a binary mask, received dtype == %s' %
+            mask.dtype)
 
-  mask = np.squeeze(mask)
-  if len(mask.shape) != 2:
-    raise ValueError(
-        "encode_binary_mask expects a 2d mask, received shape == %s" %
-        mask.shape)
+    mask = np.squeeze(mask)
+    if len(mask.shape) != 2:
+        raise ValueError(
+            'encode_binary_mask expects a 2d mask, received shape == %s' %
+            mask.shape)
 
-  # convert input mask to expected COCO API input --
-  mask_to_encode = mask.reshape(mask.shape[0], mask.shape[1], 1)
-  mask_to_encode = mask_to_encode.astype(np.uint8)
-  mask_to_encode = np.asfortranarray(mask_to_encode)
+    # convert input mask to expected COCO API input --
+    mask_to_encode = mask.reshape(mask.shape[0], mask.shape[1], 1)
+    mask_to_encode = mask_to_encode.astype(np.uint8)
+    mask_to_encode = np.asfortranarray(mask_to_encode)
 
-  # RLE encode mask --
-  encoded_mask = coco_mask.encode(mask_to_encode)[0]["counts"]
+    # RLE encode mask --
+    encoded_mask = coco_mask.encode(mask_to_encode)[0]['counts']
 
-  # compress and base64 encoding --
-  binary_str = zlib.compress(encoded_mask, zlib.Z_BEST_COMPRESSION)
-  base64_str = base64.b64encode(binary_str)
-  return base64_str
+    # compress and base64 encoding --
+    binary_str = zlib.compress(encoded_mask, zlib.Z_BEST_COMPRESSION)
+    base64_str = base64.b64encode(binary_str)
+    return base64_str
 
 
 def initialize_detector(config,
@@ -66,12 +65,11 @@ def initialize_detector(config,
     return model
 
 
-def hubmap_single_model(
-        model_dict,
-        image_root,
-        iou_thr=0.5,
-        score_thr=0.001,
-        max_num=100):
+def hubmap_single_model(model_dict,
+                        image_root,
+                        iou_thr=0.5,
+                        score_thr=0.001,
+                        max_num=100):
     ids = []
     heights = []
     widths = []
@@ -135,4 +133,4 @@ if __name__ == '__main__':
     submission['width'] = widths
     submission['prediction_string'] = prediction_strings
     submission = submission.set_index('id')
-    submission.to_csv("submission.csv")
+    submission.to_csv('submission.csv')

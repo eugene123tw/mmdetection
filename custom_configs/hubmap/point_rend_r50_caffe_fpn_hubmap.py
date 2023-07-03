@@ -1,15 +1,17 @@
 model = dict(
-    type='MaskRCNN',
+    type='PointRend',
     backbone=dict(
         type='ResNet',
         depth=50,
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='BN', requires_grad=True),
+        norm_cfg=dict(type='BN', requires_grad=False),
         norm_eval=True,
-        style='pytorch',
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
+        style='caffe',
+        init_cfg=dict(
+            type='Pretrained',
+            checkpoint='open-mmlab://detectron2/resnet50_caffe')),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -32,7 +34,7 @@ model = dict(
             type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0),
         loss_bbox=dict(type='L1Loss', loss_weight=1.0)),
     roi_head=dict(
-        type='StandardRoIHead',
+        type='PointRendRoIHead',
         bbox_roi_extractor=dict(
             type='SingleRoIExtractor',
             roi_layer=dict(type='RoIAlign', output_size=7, sampling_ratio=0),
@@ -53,17 +55,28 @@ model = dict(
                 type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
             loss_bbox=dict(type='L1Loss', loss_weight=1.0)),
         mask_roi_extractor=dict(
-            type='SingleRoIExtractor',
-            roi_layer=dict(type='RoIAlign', output_size=14, sampling_ratio=0),
+            type='GenericRoIExtractor',
+            roi_layer=dict(type='SimpleRoIAlign', output_size=14),
             out_channels=256,
-            featmap_strides=[4, 8, 16, 32]),
+            featmap_strides=[4],
+            aggregation='concat'),
         mask_head=dict(
-            type='FCNMaskHead',
-            num_convs=4,
+            type='CoarseMaskHead',
+            num_fcs=2,
             in_channels=256,
             conv_out_channels=256,
+            fc_out_channels=1024,
             num_classes=2,
             loss_mask=dict(
+                type='CrossEntropyLoss', use_mask=True, loss_weight=1.0)),
+        point_head=dict(
+            type='MaskPointHead',
+            num_fcs=3,
+            in_channels=256,
+            fc_channels=256,
+            num_classes=2,
+            coarse_pred_each_layer=True,
+            loss_point=dict(
                 type='CrossEntropyLoss', use_mask=True, loss_weight=1.0))),
     train_cfg=dict(
         rpn=dict(
@@ -102,9 +115,12 @@ model = dict(
                 pos_fraction=0.25,
                 neg_pos_ub=-1,
                 add_gt_as_proposals=True),
-            mask_size=28,
+            mask_size=7,
             pos_weight=-1,
-            debug=False)),
+            debug=False,
+            num_points=196,
+            oversample_ratio=3,
+            importance_sample_ratio=0.75)),
     test_cfg=dict(
         rpn=dict(
             nms_pre=1000,
@@ -115,7 +131,10 @@ model = dict(
             score_thr=0.05,
             nms=dict(type='nms', iou_threshold=0.5),
             max_per_img=100,
-            mask_thr_binary=0.5)))
+            mask_thr_binary=0.5,
+            subdivision_steps=5,
+            subdivision_num_points=784,
+            scale_factor=2)))
 
 evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP')
 optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
@@ -132,7 +151,7 @@ log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
 custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = 'https://download.openmmlab.com/mmdetection/v2.0/mask_rcnn/mask_rcnn_r50_fpn_mstrain-poly_3x_coco/mask_rcnn_r50_fpn_mstrain-poly_3x_coco_20210524_201154-21b550bb.pth'
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/point_rend/point_rend_r50_caffe_fpn_mstrain_3x_coco/point_rend_r50_caffe_fpn_mstrain_3x_coco-e0ebb6b7.pth'
 resume_from = None
 workflow = [('train', 1)]
 auto_resume = False

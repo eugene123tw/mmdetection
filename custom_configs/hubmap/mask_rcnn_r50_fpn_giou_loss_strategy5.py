@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/datasets/hubmap_strategy4.py',
+    '../_base_/datasets/hubmap_strategy5.py',
     './mask_rcnn_r50_fpn.py',
 ]
 

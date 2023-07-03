@@ -54,7 +54,6 @@ model = dict(
         sigma=2.0,
         max_per_img=100))
 
-
 evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP')
 optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
@@ -63,16 +62,13 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=500,
     warmup_ratio=0.3333333333333333,
-    step=[27, 33])
-runner = dict(type='EpochBasedRunner', max_epochs=36)
-checkpoint_config = dict(interval=1)
+    step=[16, 22])
+runner = dict(type='EpochBasedRunner', max_epochs=24)
+checkpoint_config = dict(interval=10)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
-custom_hooks = [dict(type='NumClassCheckHook')]
+custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = None
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/solov2/solov2_x101_dcn_fpn_3x_coco/solov2_x101_dcn_fpn_3x_coco_20220513_214337-aef41095.pth'
 resume_from = None
 workflow = [('train', 1)]
-opencv_num_threads = 0
-mp_start_method = 'fork'
-auto_scale_lr = dict(enable=False, base_batch_size=16)
