@@ -1,6 +1,6 @@
 _base_ = [
-    '../_base_/datasets/hubmap_strategy5_aug.py',
-    './cascade_mask_rcnn_x101_64x4d_fpn.py'
+    './solov2_x101_dcn_fpn.py',
+    '../_base_/datasets/hubmap_strategy5_instaboost.py',
 ]
 
 data = dict(samples_per_gpu=4)

@@ -23,11 +23,10 @@ lr_config = dict(
 
 custom_hooks = [
     dict(
-        type='LazyEarlyStoppingHook',
-        start=3,
+        type='EarlyStoppingHook',
         patience=10,
         iteration_patience=0,
-        metric='mAP',
+        metric='segm_mAP',
         interval=1,
         priority=75)
 ]
