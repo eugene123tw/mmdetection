@@ -29,10 +29,10 @@ def prefilter_boxes(boxes, scores, labels, weights, thr):
                 continue
             label = int(labels[t][j])
             box_part = boxes[t][j]
-            x1 = box_part[0]
-            y1 = box_part[1]
-            x2 = box_part[2]
-            y2 = box_part[3]
+            x1 = float(box_part[0])
+            y1 = float(box_part[1])
+            x2 = float(box_part[2])
+            y2 = float(box_part[3])
 
             # Box data checks
             if x2 < x1:
@@ -233,8 +233,8 @@ def weighted_boxes_fusion(boxes_list,
                 weighted_boxes[index] = get_weighted_box(
                     new_boxes[index], conf_type)
             else:
-                new_boxes.append([boxes[j]])
-                weighted_boxes = np.vstack((weighted_boxes, boxes[j]))
+                new_boxes.append([boxes[j].copy()])
+                weighted_boxes = np.vstack((weighted_boxes, boxes[j].copy()))
 
         # Rescale confidence based on number of models and boxes
         for i in range(len(new_boxes)):
