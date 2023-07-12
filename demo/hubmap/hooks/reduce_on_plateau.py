@@ -140,8 +140,9 @@ class ReduceLROnPlateauLrUpdaterHook(LrUpdaterHook):
         if not self._is_check_timing(runner):
             return self.current_lr
 
-        if hasattr(runner, 'all_metrics'):
-            score = runner.all_metrics.get(self.metric, 0.0)
+        # TODO: find a way to get metric score gracefully
+        if hasattr(runner, self.metric):
+            score = getattr(runner, self.metric, 0.0)
         else:
             return self.current_lr
 
