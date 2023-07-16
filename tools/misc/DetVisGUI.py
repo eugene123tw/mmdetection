@@ -737,12 +737,18 @@ class vis_tool:
                 mask = segms[i]
             elif type(segms[0]) == dict:
                 mask = maskUtils.decode(segms[i]).astype(bool)
+            if sum(bboxes[i, :4]) == 0:
+                y_s, x_s = np.where(mask == 1)
+                boxes[0][i, 0] = min(x_s)
+                boxes[0][i, 1] = min(y_s)
+                boxes[0][i, 2] = max(x_s)
+                boxes[0][i, 3] = max(y_s)
+
             img[mask] = img[mask] * 0.5 + color_mask * 0.5
             self.color_list.append('#%02x%02x%02x' % tuple(color_mask[0]))
 
         if self.data_info.has_anno:
-            boxes2, _ = single_detection
-            self.iou = self.get_iou(boxes2)
+            self.iou = self.get_iou(boxes)
             if self.combo_category.get() != 'All':
                 iou = np.asarray([self.iou[show_idx]])
             else:

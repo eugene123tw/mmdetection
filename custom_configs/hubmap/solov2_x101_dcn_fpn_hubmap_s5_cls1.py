@@ -1,6 +1,6 @@
 _base_ = [
-    './solov2_x101_dcn_fpn.py',
     '../_base_/datasets/hubmap_strategy5_cls1.py',
+    './solov2_x101_dcn_fpn.py'
 ]
 
 model = dict(mask_head=dict(num_classes=1))
@@ -14,7 +14,7 @@ runner = dict(type='EpochBasedRunnerWithCancel', max_epochs=100)
 lr_config = dict(
     _delete_=True,
     policy='ReduceLROnPlateau',
-    metric='mAP',
+    metric='segm_mAP',
     patience=5,
     iteration_patience=0,
     interval=1,

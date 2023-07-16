@@ -47,12 +47,12 @@ model = dict(
         dcn_apply_to_all_conv=True),
     test_cfg=dict(
         nms_pre=500,
-        score_thr=0.1,
+        score_thr=0.01,
         mask_thr=0.5,
         filter_thr=0.05,
         kernel='gaussian',
         sigma=2.0,
-        max_per_img=100))
+        max_per_img=500))
 
 evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP')
 optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0001)
@@ -65,7 +65,10 @@ lr_config = dict(
     step=[16, 22])
 runner = dict(type='EpochBasedRunner', max_epochs=24)
 checkpoint_config = dict(interval=10)
-log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
+log_config = dict(interval=50, hooks=[
+    dict(type='TextLoggerHook'),
+    dict(type='TensorboardLoggerHook')
+])
 custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'

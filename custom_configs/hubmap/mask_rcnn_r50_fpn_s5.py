@@ -1,19 +1,17 @@
 _base_ = [
-    './solov2_x101_dcn_fpn.py',
-    '../_base_/datasets/hubmap_strategy5_aug.py',
+    '../_base_/datasets/hubmap_strategy5.py',
+    './mask_rcnn_r50_fpn.py',
 ]
-
-data = dict(samples_per_gpu=4)
 
 runner = dict(type='EpochBasedRunnerWithCancel', max_epochs=100)
 
-# optimizer_config = dict(_delete_=True, grad_clip=dict(max_norm=35, norm_type=2))
+optimizer_config = dict(_delete_=True, grad_clip=dict(max_norm=35, norm_type=2))
 
 lr_config = dict(
     _delete_=True,
     policy='ReduceLROnPlateau',
-    metric='mAP',
-    patience=5,
+    metric='segm_mAP',
+    patience=12,
     iteration_patience=0,
     interval=1,
     min_lr=1e-06,
@@ -24,7 +22,7 @@ lr_config = dict(
 custom_hooks = [
     dict(
         type='EarlyStoppingHook',
-        patience=10,
+        patience=17,
         iteration_patience=0,
         metric='segm_mAP',
         interval=1,
