@@ -28,7 +28,7 @@ albu_train_transforms = [
                 val_shift_limit=20,
                 p=1.0)
         ],
-        p=0.1),
+        p=0.2),
     dict(type='JpegCompression', quality_lower=85, quality_upper=95, p=0.2),
     dict(
         type='OneOf',
@@ -36,17 +36,16 @@ albu_train_transforms = [
             dict(type='Blur', blur_limit=3, p=1.0),
             dict(type='MedianBlur', blur_limit=3, p=1.0)
         ],
-        p=0.1),
+        p=0.2),
+    dict(type='RandomRotate90', p=0.5)
 ]
 
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(type='Resize', img_scale=(1024, 1024), keep_ratio=False),
-    dict(
-        type='RandomFlip',
-        flip_ratio=0.5,
-        direction=['horizontal', 'vertical']),
+    dict(type='RandomFlip', direction='vertical', flip_ratio=0.5),
+    dict(type='RandomFlip', direction='horizontal', flip_ratio=0.5),
     dict(
         type='Albu',
         transforms=albu_train_transforms,
