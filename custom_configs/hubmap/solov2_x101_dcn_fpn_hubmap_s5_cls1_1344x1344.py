@@ -7,29 +7,15 @@ model = dict(mask_head=dict(num_classes=1))
 
 data = dict(samples_per_gpu=2)
 
-runner = dict(type='EpochBasedRunnerWithCancel', max_epochs=100)
+runner = dict(type='EpochBasedRunner', max_epochs=24)
 
 # optimizer_config = dict(_delete_=True, grad_clip=dict(max_norm=35, norm_type=2))
 
 lr_config = dict(
-    _delete_=True,
-    policy='ReduceLROnPlateau',
-    metric='segm_mAP',
-    patience=5,
-    iteration_patience=0,
-    interval=1,
-    min_lr=1e-06,
+    policy='step',
     warmup='linear',
-    warmup_iters=200,
-    warmup_ratio=0.3333333333333333)
+    warmup_iters=500,
+    warmup_ratio=0.001,
+    step=[16, 22])
 
-custom_hooks = [
-    dict(
-        type='LazyEarlyStoppingHook',
-        start=3,
-        patience=10,
-        iteration_patience=0,
-        metric='segm_mAP',
-        interval=1,
-        priority=75)
-]
+custom_hooks = []

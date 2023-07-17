@@ -6,14 +6,32 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 classes = ['blood_vessel']
 
+albu_train_transforms = [
+    dict(type='RandomRotate90', p=0.5)
+]
+
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(type='Resize', img_scale=(1344, 1344), keep_ratio=False),
+    dict(type='RandomFlip', direction='vertical', flip_ratio=0.5),
+    dict(type='RandomFlip', direction='horizontal', flip_ratio=0.5),
     dict(
-        type='RandomFlip',
-        flip_ratio=0.5,
-        direction=['horizontal', 'vertical']),
+        type='Albu',
+        transforms=albu_train_transforms,
+        bbox_params=dict(
+            type='BboxParams',
+            format='pascal_voc',
+            label_fields=['gt_labels'],
+            min_visibility=0.0,
+            filter_lost_elements=True),
+        keymap={
+            'img': 'image',
+            'gt_masks': 'masks',
+            'gt_bboxes': 'bboxes'
+        },
+        update_pad_shape=False,
+        skip_img_without_anno=True),
     dict(type='Pad', size_divisor=32),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='DefaultFormatBundle'),

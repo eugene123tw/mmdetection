@@ -751,6 +751,9 @@ class SOLOV2Head(SOLOHead):
             kernel=cfg.kernel,
             sigma=cfg.sigma,
             filter_thr=cfg.filter_thr)
+        if len(keep_inds) == 0:
+            return empty_results(results, cls_scores)
+
         mask_preds = mask_preds[keep_inds]
         mask_preds = F.interpolate(
             mask_preds.unsqueeze(0),
