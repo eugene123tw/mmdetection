@@ -32,3 +32,5 @@ custom_hooks = [
         interval=1,
         priority=75)
 ]
+
+auto_scale_lr = dict(base_batch_size=4 * 4)
