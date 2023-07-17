@@ -140,6 +140,11 @@ class DistEvalHook(BaseDistEvalHook):
             runner.log_buffer.output['eval_iter_num'] = len(self.dataloader)
             key_score = self.evaluate(runner, results)
 
+            for name, val in runner.log_buffer.output.items():
+                # TODO: Cache val score since log will be cleared in LoggerHook.after_train_iter
+                #  before ReduceOnPlateau could get it
+                setattr(runner, name, val)
+
             # the key_score may be `None` so it needs to skip
             # the action to save the best checkpoint
             if self.save_best and key_score:
