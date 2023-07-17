@@ -205,13 +205,13 @@ data = dict(samples_per_gpu=4)
 
 runner = dict(type='EpochBasedRunnerWithCancel', max_epochs=100)
 
-evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP_75')
+evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP')
 optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 
 lr_config = dict(
     policy='ReduceLROnPlateau',
-    metric='mAP',
+    metric='segm_mAP',
     patience=5,
     iteration_patience=0,
     interval=1,
