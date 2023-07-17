@@ -15,7 +15,7 @@ lr_config = dict(
     _delete_=True,
     policy='ReduceLROnPlateau',
     metric='segm_mAP',
-    patience=10,
+    patience=5,
     iteration_patience=0,
     interval=1,
     min_lr=1e-06,
@@ -26,7 +26,7 @@ lr_config = dict(
 custom_hooks = [
     dict(
         type='EarlyStoppingHook',
-        patience=15,
+        patience=10,
         iteration_patience=0,
         metric='segm_mAP',
         interval=1,
