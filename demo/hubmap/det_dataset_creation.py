@@ -11,7 +11,9 @@ from datumaro.components.project import Dataset
 from sklearn.model_selection import KFold
 
 from demo.hubmap.single_model_test import initialize_detector
-from mmdet.apis import inference_detector, init_detector
+from mmdet.apis import inference_detector
+
+
 
 # Tiles from Dataset 1 have annotations that have been expert reviewed.
 # Tiles from Dataset 2 contains sparse annotations that have NOT been expert reviewed.
@@ -22,7 +24,8 @@ from mmdet.apis import inference_detector, init_detector
 
 BBOX_INDEX = 0
 MASK_INDEX = 1
-LABLE_INDEX = 1  # ONLY PICK BLOOD VESSEL
+# LABLE_INDEX = 1  # ONLY PICK BLOOD VESSEL
+LABLE_INDEX = 0  # ONLY PICK BLOOD VESSEL - 1 cls
 
 
 def binary_mask_to_polygon(binary_mask):
@@ -49,8 +52,8 @@ class HuBMAPVasculatureDataset:
     def __init__(self, data_root) -> None:
         self.data_root = data_root
         # self.labels = ['glomerulus', 'blood_vessel', 'unsure']
-        # self.labels = ['blood_vessel']
-        self.labels = ['glomerulus', 'blood_vessel']
+        self.labels = ['blood_vessel']
+        # self.labels = ['glomerulus', 'blood_vessel']
         self.df = pd.read_csv(os.path.join(self.data_root, 'tile_meta.csv'))
         np.random.seed(42)
         self.dsitem_dict = self._make_dsitems()
@@ -66,7 +69,6 @@ class HuBMAPVasculatureDataset:
             result = json.loads(result)
             image_id = result['id']
             img = cv2.imread(os.path.join(train_root, f'{image_id}.tif'))
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             attributes = {'filename': f'{self.data_root}/train/{image_id}.tif'}
             datumaro_polygons = []
 
@@ -98,9 +100,10 @@ class HuBMAPVasculatureDataset:
                 dsitem = self.dsitem_dict[row['id']]
                 if row['dataset'] == 1:
                     dsitem.subset = 'train'
+                    dsitems.append(dsitem)
                 elif row['dataset'] == 2:
                     dsitem.subset = 'val'
-                dsitems.append(dsitem)
+                    dsitems.append(dsitem)
         return dsitems
 
     def strategy_2(self):
@@ -111,14 +114,36 @@ class HuBMAPVasculatureDataset:
                 dsitem = self.dsitem_dict[row['id']]
                 if row['dataset'] == 2:
                     dsitem.subset = 'train'
+                    dsitems.append(dsitem)
                 elif row['dataset'] == 1:
                     dsitem.subset = 'val'
-                dsitems.append(dsitem)
+                    dsitems.append(dsitem)
         return dsitems
 
-    def strategy_3(self):
+    def strategy_3(self, n_folds=5, seed=0, export_path=None):
         """Train on Dataset 1, test on Dataset 1."""
-        pass
+        dsitems = []
+        for index, row in self.df.iterrows():
+            if self.dsitem_dict.get(row['id']) is not None:
+                dsitem = self.dsitem_dict[row['id']]
+                if row['dataset'] == 1:
+                    dsitems.append(dsitem)
+
+        kf = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
+        for fold, (train_indices, val_indices) in enumerate(kf.split(range(len(dsitems)))):
+            for i in train_indices:
+                dsitems[i].subset = 'train'
+            for i in val_indices:
+                dsitems[i].subset = 'val'
+            if export_path is not None:
+                dataset = Dataset.from_iterable(
+                    dsitems, categories=self.labels)
+                dataset.export(
+                    f'{export_path}//fold_{fold}',
+                    'coco',
+                    default_image_ext='.tif',
+                    save_media=True)
+        return dsitems
 
     def strategy_4(self):
         """Train on WSI_1 (Dataset 1 + Dataset 2) , test on WSI_2 (Dataset
@@ -151,17 +176,6 @@ class HuBMAPVasculatureDataset:
                         dsitem.subset = 'val'
                         dsitems.append(dsitem)
         return dsitems
-
-    def make_coco_split(self, dsitems, n_folds=5):
-        kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
-        folds = []
-        for fold, (train_indices, val_indices) in enumerate(kf.split(dsitems)):
-            for index in train_indices:
-                dsitems[index].subset = 'train'
-            for index in val_indices:
-                dsitems[index].subset = 'val'
-            folds.append(dsitems)
-        return folds
 
     def export(self, dsitems, export_path):
         dataset = Dataset.from_iterable(dsitems, categories=self.labels)
@@ -237,25 +251,28 @@ if __name__ == '__main__':
     dataset = HuBMAPVasculatureDataset(
         data_root='/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature'
     )
-    # dsitems = dataset.strategy_1()
-    # dsitems = dataset.strategy_2()
+
+    dsitems = dataset.strategy_2()
+    dataset.export(
+        dsitems,
+        export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s2-cls_1')
+
     # dsitems = dataset.strategy_5()
     # dataset.export(
     #     dsitems,
-    #     export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-strategy_5'
-    # )
+    #     export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s5-cls_2')
 
-    dsitems = dataset.generate_pseudo_labeling(
-        config=
-        'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_album_simple_aug/solov2_x101_dcn_fpn_hubmap_s5_aug.py',
-        ckpt=
-        'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_album_simple_aug/best_segm_mAP_epoch_15.pth',
-        iou_thr=0.6,
-        nms_score_thr=0.65,
-        max_num=100,
-        score_thr=0.65,
-    )
-    dataset.export(
-        dsitems,
-        export_path=
-        '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-pseudo-labeling')
+    # dsitems = dataset.generate_pseudo_labeling(
+    #     config=
+    #     'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_album_simple_aug/solov2_x101_dcn_fpn_hubmap_s5_aug.py',
+    #     ckpt=
+    #     'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_album_simple_aug/best_segm_mAP_epoch_15.pth',
+    #     iou_thr=0.6,
+    #     nms_score_thr=0.5,
+    #     max_num=1000,
+    #     score_thr=0.5,
+    # )
+    # dataset.export(
+    #     dsitems,
+    #     export_path=
+    #     '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-pseudo-labeling-50')
