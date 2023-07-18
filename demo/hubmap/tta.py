@@ -1,33 +1,89 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-import argparse
+import base64
+import os
+import typing as t
+import zlib
+from pathlib import Path
 
+import cv2
+import mmcv
+import numpy as np
+import pandas as pd
 import torch
 from mmcv import Config
-from mmcv.cnn import fuse_conv_bn
 from mmcv.runner import load_checkpoint, wrap_fp16_model
+from pycocotools import _mask as coco_mask
 
-from mmdet.apis import single_gpu_test
+from mmdet.core import encode_mask_results
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
+from mmdet.datasets.builder import DATASETS
+from mmdet.datasets.custom import CustomDataset
 from mmdet.models import build_detector
 from mmdet.utils import (build_dp, compat_cfg, get_device, replace_cfg_vals,
                          rfnext_init_model, setup_multi_processes,
                          update_data_root)
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description='MMDet test (and eval) a model')
-    parser.add_argument('config', help='test config file path')
-    parser.add_argument('checkpoint', help='checkpoint file')
-    args = parser.parse_args()
-    return args
+LABLE_INDEX = 0  # blood_vessel
 
 
-def main():
-    args = parse_args()
+@DATASETS.register_module()
+class HubmapTTADataset(CustomDataset):
+    CLASSES = ('blood_vessel')
+    PALETTE = [(220, 20, 60)]
 
-    cfg = Config.fromfile(args.config)
+    def load_annotations(self, ann_file):
+        del ann_file  # not required
+        img_infos = []
+
+        # modify this according to your path
+        paths = list(Path(self.img_prefix).glob('*'))
+
+        paths.sort(key=lambda p: p.name)
+        for img_path in paths:
+            img_id = img_path.name.split('.')[0]
+            filename = str(img_path)
+            height, width = mmcv.imread(str(img_path)).shape[:2]
+            img_infos.append(
+                dict(id=img_id, filename=filename, width=width, height=height))
+        print(f'dataset size: {len(img_infos)}')
+        return img_infos
+
+
+def encode_binary_mask(mask: np.ndarray) -> t.Text:
+    """Converts a binary mask into OID challenge encoding ascii text."""
+    # check input mask --
+    if mask.dtype != np.bool:
+        raise ValueError(
+            'encode_binary_mask expects a binary mask, received dtype == %s' %
+            mask.dtype)
+
+    mask = np.squeeze(mask)
+    if len(mask.shape) != 2:
+        raise ValueError(
+            'encode_binary_mask expects a 2d mask, received shape == %s' %
+            mask.shape)
+
+    # convert input mask to expected COCO API input --
+    mask_to_encode = mask.reshape(mask.shape[0], mask.shape[1], 1)
+    mask_to_encode = mask_to_encode.astype(np.uint8)
+    mask_to_encode = np.asfortranarray(mask_to_encode)
+
+    # RLE encode mask --
+    encoded_mask = coco_mask.encode(mask_to_encode)[0]['counts']
+
+    # compress and base64 encoding --
+    binary_str = zlib.compress(encoded_mask, zlib.Z_BEST_COMPRESSION)
+    base64_str = base64.b64encode(binary_str)
+    return base64_str
+
+
+def tta(model_dict, image_root, score_thr=0.001, max_num=1000, dump=False):
+
+    config = model_dict['config']
+    checkpoint = model_dict['ckpt']
+
+    cfg = Config.fromfile(config)
 
     # replace the ${key} with the value of cfg.key
     cfg = replace_cfg_vals(cfg)
@@ -84,7 +140,11 @@ def main():
     }
 
     # NOTE: hard coded TTA for now
-    if cfg.data.test.pipeline[1] == 'MultiScaleFlipAug':
+    cfg.data.test.type = 'HubmapTTADataset'
+    cfg.data.test.ann_file = ''
+    cfg.data.test.img_prefix = image_root
+
+    if cfg.data.test.pipeline[1].type == 'MultiScaleFlipAug':
         tta_pipeline = cfg.data.test.pipeline[1]
         tta_pipeline.flip = True
         tta_pipeline.flip_direction = ['horizontal', 'vertical']
@@ -103,7 +163,7 @@ def main():
         fp16_cfg = dict(loss_scale='dynamic')
     if fp16_cfg is not None:
         wrap_fp16_model(model)
-    checkpoint = load_checkpoint(model, args.checkpoint, map_location='cpu')
+    checkpoint = load_checkpoint(model, checkpoint, map_location='cpu')
     # old versions did not save class info in checkpoints, this walkaround is
     # for backward compatibility
     if 'CLASSES' in checkpoint.get('meta', {}):
@@ -111,9 +171,77 @@ def main():
     else:
         model.CLASSES = dataset.CLASSES
 
+    image_ids = []
+    heights = []
+    widths = []
+    prediction_strings = []
+
+    if dump:
+        results = []
+
     model = build_dp(model, device_ids=[0])
-    outputs = single_gpu_test(model, data_loader)
+    for i, data in enumerate(data_loader):
+        with torch.no_grad():
+            image_id = str(
+                Path(data['img_metas'][1].data[0][0]['filename']).stem)
+            result = model(return_loss=False, rescale=True, **data)
+            if dump:
+                result = [(bbox_results, encode_mask_results(mask_results))
+                          for bbox_results, mask_results in result]
+                results.extend(result)
+            else:
+                bboxes, masks = result[0]
+                bboxes, masks = bboxes[LABLE_INDEX], masks[LABLE_INDEX]
+                pred_string = ''
+                num_predictions = bboxes.shape[0]
+                n = 0
+                for i in range(num_predictions):
+                    mask = masks[i]
+                    score = bboxes[i][-1]
+                    if score >= score_thr and mask.sum() > 32:
+                        # NOTE: add dilation to make the mask larger
+                        mask = mask.astype(np.uint8)
+                        kernel = np.ones(shape=(3, 3), dtype=np.uint8)
+                        bitmask = cv2.dilate(mask, kernel, 3)
+                        bitmask = bitmask.astype(bool)
+
+                        encoded = encode_binary_mask(bitmask)
+                        if n == 0:
+                            pred_string += f"0 {score} {encoded.decode('utf-8')}"
+                        else:
+                            pred_string += f" 0 {score} {encoded.decode('utf-8')}"
+                        n += 1
+                height, width = cv2.imread(
+                    data['img_metas'][1].data[0][0]['filename']).shape[:2]
+                image_ids.append(image_id)
+                prediction_strings.append(pred_string)
+                heights.append(height)
+                widths.append(width)
+
+    if dump:
+        mmcv.dump(results, os.path.dirname(checkpoint) + '/tta_results.pkl')
+
+    return image_ids, prediction_strings, heights, widths
 
 
 if __name__ == '__main__':
-    main()
+    image_root = '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s5-cls_1/images/val'
+    model_dict = {
+        'name':
+        'solov2_x101_dcn_fpn_hubmap_s5_cls1_1344x1344',
+        'config':
+        '/home/yuchunli/git/mmdetection/work_dirs/solov2_x101_dcn_fpn_hubmap_s5_cls1_1344x1344/solov2_x101_dcn_fpn_hubmap_s5_cls1_1344x1344.py',
+        'ckpt':
+        '/home/yuchunli/git/mmdetection/work_dirs/solov2_x101_dcn_fpn_hubmap_s5_cls1_1344x1344/best_segm_mAP_epoch_16.pth'
+    }
+
+    image_ids, prediction_strings, heights, widths = tta(
+        model_dict, image_root, score_thr=0.001, max_num=1000, dump=True)
+    submission = pd.DataFrame()
+    submission['id'] = image_ids
+    submission['height'] = heights
+    submission['width'] = widths
+    submission['prediction_string'] = prediction_strings
+    submission = submission.set_index('id')
+    submission.to_csv('submission.csv')
+    print(submission)

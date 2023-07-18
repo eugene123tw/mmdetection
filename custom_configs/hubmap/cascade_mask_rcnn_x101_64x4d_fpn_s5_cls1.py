@@ -231,10 +231,10 @@ custom_hooks = [
 ]
 
 checkpoint_config = dict(interval=12)
-log_config = dict(interval=50, hooks=[
-    dict(type='TextLoggerHook'),
-    dict(type='TensorboardLoggerHook')
-])
+log_config = dict(
+    interval=50,
+    hooks=[dict(type='TextLoggerHook'),
+           dict(type='TensorboardLoggerHook')])
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'

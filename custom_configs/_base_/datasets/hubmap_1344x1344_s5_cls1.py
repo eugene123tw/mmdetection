@@ -6,9 +6,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
 classes = ['blood_vessel']
 
-albu_train_transforms = [
-    dict(type='RandomRotate90', p=0.5)
-]
+albu_train_transforms = [dict(type='RandomRotate90', p=0.5)]
 
 train_pipeline = [
     dict(type='LoadImageFromFile'),
