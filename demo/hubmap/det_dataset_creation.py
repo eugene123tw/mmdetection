@@ -13,8 +13,6 @@ from sklearn.model_selection import KFold
 from demo.hubmap.single_model_test import initialize_detector
 from mmdet.apis import inference_detector
 
-
-
 # Tiles from Dataset 1 have annotations that have been expert reviewed.
 # Tiles from Dataset 2 contains sparse annotations that have NOT been expert reviewed.
 
@@ -130,7 +128,8 @@ class HuBMAPVasculatureDataset:
                     dsitems.append(dsitem)
 
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
-        for fold, (train_indices, val_indices) in enumerate(kf.split(range(len(dsitems)))):
+        for fold, (train_indices,
+                   val_indices) in enumerate(kf.split(range(len(dsitems)))):
             for i in train_indices:
                 dsitems[i].subset = 'train'
             for i in val_indices:
