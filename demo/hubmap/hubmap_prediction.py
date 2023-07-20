@@ -1,11 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import base64
+import copy
 import typing as t
 import zlib
 from pathlib import Path
-
-import copy
 
 import cv2
 import mmcv
@@ -14,8 +13,8 @@ import pandas as pd
 import torch
 from mmcv import Config
 from pycocotools import _mask as coco_mask
-from mmdet.apis import init_detector
 
+from mmdet.apis import init_detector
 from mmdet.core import encode_mask_results
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
@@ -26,9 +25,6 @@ from mmdet.utils import build_dp
 
 @DATASETS.register_module()
 class HubmapTTADataset(CustomDataset):
-    CLASSES = ('blood_vessel')
-    PALETTE = [(220, 20, 60)]
-    TARGET_LABLE_INDEX = 0  # blood_vessel
 
     def load_annotations(self, ann_file):
         del ann_file  # not required
@@ -49,21 +45,28 @@ class HubmapTTADataset(CustomDataset):
 
 
 class HubMAPTest:
-    def __init__(self, cfg_path, ckpt_path, image_root, iou_threshold=0.6,
-                 score_thr=0.001, max_num=1000):
+
+    def __init__(self,
+                 cfg_path,
+                 ckpt_path,
+                 image_root,
+                 iou_threshold=0.6,
+                 score_thr=0.001,
+                 max_num=1000):
         self.image_root = image_root
         self.cfg_path = cfg_path
         self.ckpt_path = ckpt_path
         self.cfg = self.init_cfg(cfg_path)
         self.model = self.init_model(iou_threshold, score_thr, max_num)
+        self.setup_classes(self.model, self.cfg)
 
     def encode_binary_mask(self, mask: np.ndarray) -> t.Text:
         """Converts a binary mask into OID challenge encoding ascii text."""
         # check input mask --
         if mask.dtype != np.bool:
             raise ValueError(
-                'encode_binary_mask expects a binary mask, received dtype == %s' %
-                mask.dtype)
+                'encode_binary_mask expects a binary mask, received dtype == %s'
+                % mask.dtype)
 
         mask = np.squeeze(mask)
         if len(mask.shape) != 2:
@@ -84,14 +87,20 @@ class HubMAPTest:
         base64_str = base64.b64encode(binary_str)
         return base64_str
 
+    def setup_classes(self, model, cfg):
+        self.classes = model.CLASSES
+        self.taget_label_index = self.classes.index('blood_vessel')
+        cfg.data.test.classes = self.classes
+
     def init_cfg(self, cfg_path):
         cfg = Config.fromfile(cfg_path)
 
         cfg.data.test.test_mode = True
         cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
-        cfg.data.test.type = 'HubmapTTADataset'
-        cfg.data.test.ann_file = ''
-        cfg.data.test.img_prefix = self.image_root
+        if len(self.image_root) and self.image_root is not None:
+            cfg.data.test.type = 'HubmapTTADataset'
+            cfg.data.test.ann_file = ''
+            cfg.data.test.img_prefix = self.image_root
         return cfg
 
     def init_model(self, iou_threshold, score_thr, max_num):
@@ -109,20 +118,19 @@ class HubMAPTest:
         return model
 
     def format_results(self, results, score_thr=0.001, kernel_size=3):
-        target_lable_index = HubmapTTADataset.TARGET_LABLE_INDEX
         bboxes, masks = results[0]
-        bboxes, masks = bboxes[target_lable_index], masks[target_lable_index]
         pred_string = ''
         num_predictions = bboxes.shape[0]
         n = 0
         for i in range(num_predictions):
             mask = masks[i]
             score = bboxes[i][-1]
-            if score >= score_thr and mask.sum() > 32:
+            if score >= score_thr and mask.sum() > 0:
                 # NOTE: add dilation to make the mask larger
                 mask = mask.astype(np.uint8)
-                kernel = np.ones(shape=(kernel_size, kernel_size), dtype=np.uint8)
-                bitmask = cv2.dilate(mask, kernel, 3)
+                kernel = np.ones(
+                    shape=(kernel_size, kernel_size), dtype=np.uint8)
+                bitmask = cv2.dilate(mask, kernel, 4)
                 bitmask = bitmask.astype(bool)
 
                 encoded = self.encode_binary_mask(bitmask)
@@ -164,7 +172,8 @@ class HubMAPTest:
                               for bbox_results, mask_results in result]
                     results.extend(result)
                 else:
-                    pred_string = self.format_results(result, score_thr, kernel_size)
+                    pred_string = self.format_results(result, score_thr,
+                                                      kernel_size)
                     height, width = cv2.imread(
                         data['img_metas'][1].data[0][0]['filename']).shape[:2]
                     image_ids.append(image_id)
@@ -180,7 +189,10 @@ class HubMAPTest:
 
         test_dataloader_default_args = dict(
             samples_per_gpu=1, workers_per_gpu=2, shuffle=False)
-        test_loader_cfg = {**test_dataloader_default_args, **cfg.data.get('test_dataloader', {})}
+        test_loader_cfg = {
+            **test_dataloader_default_args,
+            **cfg.data.get('test_dataloader', {})
+        }
         if cfg.data.test.pipeline[1].type == 'MultiScaleFlipAug':
             tta_pipeline = cfg.data.test.pipeline[1]
             tta_pipeline.flip = True
@@ -201,25 +213,30 @@ class HubMAPTest:
                     Path(data['img_metas'][0].data[0][0]['filename']).stem)
                 result = model(return_loss=False, rescale=True, **data)
                 bboxes, masks = result[0]
-                bboxes = bboxes[0]
-                masks = masks[0]
 
-                if bboxes[0, :4].sum() == 0:
-                    for i in range(len(masks)):
-                        mask = masks[i]
-                        y_s, x_s = np.where(mask == 1)
-                        bboxes[i, 0] = x_s.min()
-                        bboxes[i, 1] = y_s.min()
-                        bboxes[i, 2] = x_s.max()
-                        bboxes[i, 3] = y_s.max()
-
-                result = [([bboxes], [masks])]
                 if dump:
+                    for n_class in range(len(self.classes)):
+                        cls_bboxes = bboxes[n_class]
+                        cls_masks = masks[n_class]
+                        if len(cls_bboxes) > 0 and cls_bboxes[
+                                0, :4].sum() == 0:
+                            for i in range(len(cls_masks)):
+                                mask = cls_masks[i]
+                                y_s, x_s = np.where(mask == 1)
+                                cls_bboxes[i, 0] = x_s.min()
+                                cls_bboxes[i, 1] = y_s.min()
+                                cls_bboxes[i, 2] = x_s.max()
+                                cls_bboxes[i, 3] = y_s.max()
+                    result = [(bboxes, masks)]
                     result = [(bbox_results, encode_mask_results(mask_results))
                               for bbox_results, mask_results in result]
                     results.extend(result)
                 else:
-                    pred_string = self.format_results(result, score_thr, kernel_size)
+                    target_bboxes = bboxes[self.taget_label_index]
+                    target_masks = masks[self.taget_label_index]
+                    result = [(target_bboxes, target_masks)]
+                    pred_string = self.format_results(result, score_thr,
+                                                      kernel_size)
                     height, width = cv2.imread(
                         data['img_metas'][1].data[0][0]['filename']).shape[:2]
                     image_ids.append(image_id)
@@ -232,15 +249,34 @@ class HubMAPTest:
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser("hubmap prediction")
-    parser.add_argument('--config', type=str,
-                        default='work_dirs/solov2_x101_dcn_fpn_hubmap_s5_cls1/solov2_x101_dcn_fpn_hubmap_s5_cls1.py')
-    parser.add_argument('--ckpt', type=str,
-                        default='work_dirs/solov2_x101_dcn_fpn_hubmap_s5_cls1/best_segm_mAP_epoch_8.pth')
-    parser.add_argument('--image_root', type=str,
-                        default='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s5-cls_1/images/val')
+    parser = argparse.ArgumentParser('hubmap prediction')
+    parser.add_argument(
+        '--config',
+        type=str,
+        default=
+        'work_dirs/solov2_x101_dcn_fpn_hubmap_s2_cls3/solov2_x101_dcn_fpn_hubmap_s2_cls3.py'
+    )
+    parser.add_argument(
+        '--ckpt',
+        type=str,
+        default=
+        'work_dirs/solov2_x101_dcn_fpn_hubmap_s2_cls3/best_segm_mAP_epoch_19.pth'
+    )
+    parser.add_argument(
+        '--image_root',
+        type=str,
+        default=
+        '/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature/test')
 
     args = parser.parse_args()
     hubmap = HubMAPTest(args.config, args.ckpt, args.image_root)
-    image_ids, prediction_strings, heights, widths = hubmap.predict_tta(dump=False)
-    # hubmap.predict(dump=True)
+    image_ids, prediction_strings, heights, widths = hubmap.predict_tta(
+        dump=False)
+    submission = pd.DataFrame()
+    submission['id'] = image_ids
+    submission['height'] = heights
+    submission['width'] = widths
+    submission['prediction_string'] = prediction_strings
+    submission = submission.set_index('id')
+    submission.to_csv('submission.csv')
+    print(submission)

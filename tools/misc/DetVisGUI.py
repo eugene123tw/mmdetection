@@ -138,7 +138,10 @@ class COCO_dataset:
                 single_ann.extend(list(map(int, a['bbox'])))
                 single_ann.extend([width, height])
                 if self.mask:
-                    single_ann.append(a['segmentation'][0])
+                    if isinstance(a['segmentation'], list):
+                        single_ann.append(a['segmentation'][0])
+                    else:
+                        single_ann.append(a['segmentation'])
 
                 if image_name not in total_annotations:
                     total_annotations[image_name] = []
@@ -587,12 +590,18 @@ class vis_tool:
                           self.args.gt_box_color, 1)
             if self.data_info.mask:
                 # draw polygon to img
-                contours = np.array(obj[-1]).reshape(-1)
-                contours = contours.astype(np.int32)
+                mask_ann = obj[-1]
                 color_mask = np.random.randint(0, 256, (1, 3), dtype=np.uint8)
-                polygon_masks = PolygonMasks([[contours]], self.img_height,
-                                             self.img_width)
-                mask = polygon_masks.to_ndarray()[0]
+                if isinstance(mask_ann, list):
+                    contours = np.array(mask_ann).reshape(-1)
+                    contours = contours.astype(np.int32)
+                    polygon_masks = PolygonMasks([[contours]], self.img_height,
+                                                 self.img_width)
+                    mask = polygon_masks.to_ndarray()[0]
+                else:
+                    rle = maskUtils.frPyObjects(mask_ann, self.img_height,
+                                                self.img_width)
+                    mask = maskUtils.decode(rle)
                 img[mask] = img[mask] * 0.5 + color_mask * 0.5
         return img
 
