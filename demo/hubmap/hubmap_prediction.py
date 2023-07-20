@@ -1,7 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import base64
-import os
 import typing as t
 import zlib
 from pathlib import Path
@@ -14,20 +13,15 @@ import numpy as np
 import pandas as pd
 import torch
 from mmcv import Config
-from mmcv.runner import load_checkpoint, wrap_fp16_model
 from pycocotools import _mask as coco_mask
-from mmdet.apis import inference_detector, init_detector
+from mmdet.apis import init_detector
 
-
-from mmcv.ops import nms
 from mmdet.core import encode_mask_results
 from mmdet.datasets import (build_dataloader, build_dataset,
                             replace_ImageToTensor)
 from mmdet.datasets.builder import DATASETS
 from mmdet.datasets.custom import CustomDataset
-from mmdet.models import build_detector
-from mmdet.utils import (build_dp, compat_cfg, get_device, replace_cfg_vals,
-                         rfnext_init_model, setup_multi_processes)
+from mmdet.utils import build_dp
 
 
 @DATASETS.register_module()
@@ -114,7 +108,7 @@ class HubMAPTest:
         model = init_detector(cfg, self.ckpt_path, device='cuda:0')
         return model
 
-    def format_results(results, score_thr=0.001, kernel_size=3):
+    def format_results(self, results, score_thr=0.001, kernel_size=3):
         target_lable_index = HubmapTTADataset.TARGET_LABLE_INDEX
         bboxes, masks = results[0]
         bboxes, masks = bboxes[target_lable_index], masks[target_lable_index]
@@ -181,7 +175,7 @@ class HubMAPTest:
             mmcv.dump(results, self.cfg.work_dir + '/val2.pkl')
         return image_ids, prediction_strings, heights, widths
 
-    def predict_tta(self, dump=False, score_thr=0.001, kernel_size=3, iou_thr=0.6):
+    def predict_tta(self, dump=False, score_thr=0.001, kernel_size=3):
         cfg = copy.deepcopy(self.cfg)
 
         test_dataloader_default_args = dict(
@@ -219,7 +213,6 @@ class HubMAPTest:
                         bboxes[i, 2] = x_s.max()
                         bboxes[i, 3] = y_s.max()
 
-                # nms
                 result = [([bboxes], [masks])]
                 if dump:
                     result = [(bbox_results, encode_mask_results(mask_results))
@@ -249,5 +242,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     hubmap = HubMAPTest(args.config, args.ckpt, args.image_root)
-    hubmap.predict_tta(dump=True)
+    image_ids, prediction_strings, heights, widths = hubmap.predict_tta(dump=False)
     # hubmap.predict(dump=True)
