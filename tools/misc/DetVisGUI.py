@@ -141,7 +141,10 @@ class COCO_dataset:
                     if isinstance(a['segmentation'], list):
                         single_ann.append(a['segmentation'][0])
                     else:
-                        single_ann.append(a['segmentation'])
+                        rle = maskUtils.frPyObjects(a['segmentation'],
+                                                    *a['segmentation']['size'])
+                        mask = maskUtils.decode(rle)
+                        single_ann.append(mask)
 
                 if image_name not in total_annotations:
                     total_annotations[image_name] = []
@@ -599,9 +602,7 @@ class vis_tool:
                                                  self.img_width)
                     mask = polygon_masks.to_ndarray()[0]
                 else:
-                    rle = maskUtils.frPyObjects(mask_ann, self.img_height,
-                                                self.img_width)
-                    mask = maskUtils.decode(rle)
+                    mask = mask_ann
                 img[mask] = img[mask] * 0.5 + color_mask * 0.5
         return img
 
@@ -746,12 +747,6 @@ class vis_tool:
                 mask = segms[i]
             elif type(segms[0]) == dict:
                 mask = maskUtils.decode(segms[i]).astype(bool)
-            if sum(bboxes[i, :4]) == 0:
-                y_s, x_s = np.where(mask == 1)
-                boxes[0][i, 0] = min(x_s)
-                boxes[0][i, 1] = min(y_s)
-                boxes[0][i, 2] = max(x_s)
-                boxes[0][i, 3] = max(y_s)
 
             img[mask] = img[mask] * 0.5 + color_mask * 0.5
             self.color_list.append('#%02x%02x%02x' % tuple(color_mask[0]))
