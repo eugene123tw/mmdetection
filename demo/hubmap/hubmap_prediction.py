@@ -2,6 +2,7 @@
 import argparse
 import base64
 import copy
+import os
 import typing as t
 import zlib
 from pathlib import Path
@@ -23,8 +24,8 @@ from mmdet.datasets.custom import CustomDataset
 from mmdet.utils import build_dp
 
 
-@DATASETS.register_module()
-class HubmapTTADataset(CustomDataset):
+@DATASETS.register_module(force=True)
+class HubmapDataset(CustomDataset):
 
     def load_annotations(self, ann_file):
         del ann_file  # not required
@@ -49,11 +50,18 @@ class HubMAPTest:
     def __init__(self,
                  cfg_path,
                  ckpt_path,
-                 image_root,
+                 test_image_root,
+                 original_test_root=False,
                  iou_threshold=0.6,
                  score_thr=0.001,
                  max_num=1000):
-        self.image_root = image_root
+        assert os.path.exists(
+            test_image_root
+        ) ^ original_test_root, "test_image_root and original_test_root can't be both True or False"
+
+        if original_test_root:
+            test_image_root = ''
+        self.test_image_root = test_image_root
         self.cfg_path = cfg_path
         self.ckpt_path = ckpt_path
         self.cfg = self.init_cfg(cfg_path)
@@ -94,13 +102,12 @@ class HubMAPTest:
 
     def init_cfg(self, cfg_path):
         cfg = Config.fromfile(cfg_path)
-
         cfg.data.test.test_mode = True
         cfg.data.test.pipeline = replace_ImageToTensor(cfg.data.test.pipeline)
-        if len(self.image_root) and self.image_root is not None:
-            cfg.data.test.type = 'HubmapTTADataset'
-            cfg.data.test.ann_file = ''
-            cfg.data.test.img_prefix = self.image_root
+        cfg.data.test.type = 'HubmapDataset'
+        cfg.data.test.ann_file = ''
+        if os.path.exists(self.test_image_root):
+            cfg.data.test.img_prefix = self.test_image_root
         return cfg
 
     def init_model(self, iou_threshold, score_thr, max_num):
@@ -125,12 +132,12 @@ class HubMAPTest:
         for i in range(num_predictions):
             mask = masks[i]
             score = bboxes[i][-1]
-            if score >= score_thr and mask.sum() > 0:
+            if score >= score_thr and mask.sum() > 32:
                 # NOTE: add dilation to make the mask larger
                 mask = mask.astype(np.uint8)
                 kernel = np.ones(
                     shape=(kernel_size, kernel_size), dtype=np.uint8)
-                bitmask = cv2.dilate(mask, kernel, 4)
+                bitmask = cv2.dilate(mask, kernel, 3)
                 bitmask = bitmask.astype(bool)
 
                 encoded = self.encode_binary_mask(bitmask)
@@ -164,25 +171,28 @@ class HubMAPTest:
         model = build_dp(self.model, device_ids=[0])
         for i, data in enumerate(data_loader):
             with torch.no_grad():
-                image_id = str(
-                    Path(data['img_metas'][0].data[0][0]['filename']).stem)
+                image_path = data['img_metas'][0].data[0][0]['filename']
+                image_id = str(Path(image_path).stem)
                 result = model(return_loss=False, rescale=True, **data)
                 if dump:
                     result = [(bbox_results, encode_mask_results(mask_results))
                               for bbox_results, mask_results in result]
                     results.extend(result)
                 else:
+                    bboxes, masks = result[0]
+                    target_bboxes = bboxes[self.taget_label_index]
+                    target_masks = masks[self.taget_label_index]
+                    result = [(target_bboxes, target_masks)]
                     pred_string = self.format_results(result, score_thr,
                                                       kernel_size)
-                    height, width = cv2.imread(
-                        data['img_metas'][1].data[0][0]['filename']).shape[:2]
+                    height, width = cv2.imread(image_path).shape[:2]
                     image_ids.append(image_id)
                     prediction_strings.append(pred_string)
                     heights.append(height)
                     widths.append(width)
         if dump:
-            mmcv.dump(results, self.cfg.work_dir + '/val2.pkl')
-        return image_ids, prediction_strings, heights, widths
+            mmcv.dump(results, self.cfg.work_dir + '/val.pkl')
+        return image_ids, prediction_strings, heights, widths, results
 
     def predict_tta(self, dump=False, score_thr=0.001, kernel_size=3):
         cfg = copy.deepcopy(self.cfg)
@@ -197,6 +207,13 @@ class HubMAPTest:
             tta_pipeline = cfg.data.test.pipeline[1]
             tta_pipeline.flip = True
             tta_pipeline.flip_direction = ['horizontal', 'vertical']
+            img_scale_list = []
+            # set img_scale to 512 as the original image is 512
+            base_img_scale = 512
+            for scale_factor in [1., 1.25, 1.5, 1.75, 2.]:
+                img_scale_list.append((int(base_img_scale * scale_factor),
+                                       int(base_img_scale * scale_factor)))
+            tta_pipeline.img_scale = img_scale_list
         dataset = build_dataset(cfg.data.test)
         data_loader = build_dataloader(dataset, **test_loader_cfg)
 
@@ -245,7 +262,7 @@ class HubMAPTest:
                     widths.append(width)
         if dump:
             mmcv.dump(results, self.cfg.work_dir + '/tta_results2.pkl')
-        return image_ids, prediction_strings, heights, widths
+        return image_ids, prediction_strings, heights, widths, results
 
 
 if __name__ == '__main__':
@@ -254,24 +271,28 @@ if __name__ == '__main__':
         '--config',
         type=str,
         default=
-        'work_dirs/solov2_x101_dcn_fpn_hubmap_s2_cls3/solov2_x101_dcn_fpn_hubmap_s2_cls3.py'
+        'work_dirs/mask2former_swin-s-p4-w7-224_lsj_s5_cls1/mask2former_swin-s-p4-w7-224_lsj_s5_cls1.py'
     )
     parser.add_argument(
         '--ckpt',
         type=str,
         default=
-        'work_dirs/solov2_x101_dcn_fpn_hubmap_s2_cls3/best_segm_mAP_epoch_19.pth'
+        'work_dirs/mask2former_swin-s-p4-w7-224_lsj_s5_cls1/best_segm_mAP_epoch_50.pth'
     )
-    parser.add_argument(
-        '--image_root',
-        type=str,
-        default=
-        '/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature/test')
+    parser.add_argument('--image_root', type=str, default='')
+    # parser.add_argument(
+    #     '--image-root',
+    #     type=str,
+    #     default=
+    #     '/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature/test')
+    parser.add_argument('--original-test-root', type=bool, default=True)
 
     args = parser.parse_args()
-    hubmap = HubMAPTest(args.config, args.ckpt, args.image_root)
-    image_ids, prediction_strings, heights, widths = hubmap.predict_tta(
-        dump=False)
+    hubmap = HubMAPTest(args.config, args.ckpt, args.image_root,
+                        args.original_test_root)
+    image_ids, prediction_strings, heights, widths, results = hubmap.predict_tta(
+        dump=True)
+    # image_ids, prediction_strings, heights, widths, results = hubmap.predict(dump=True)
     submission = pd.DataFrame()
     submission['id'] = image_ids
     submission['height'] = heights
@@ -280,3 +301,9 @@ if __name__ == '__main__':
     submission = submission.set_index('id')
     submission.to_csv('submission.csv')
     print(submission)
+
+    # import pycocotools.mask as maskUtils
+    # import matplotlib.pyplot as plt
+    # bboxes, masks = results[0]
+    # plt.imshow(maskUtils.decode(masks[0][0]))
+    # plt.show()

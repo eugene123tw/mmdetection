@@ -1,12 +1,13 @@
 import glob
 import json
 import os
+import warnings
 
 import cv2
 import mmcv
 import numpy as np
 import pandas as pd
-from datumaro import DatasetItem, Polygon
+from datumaro import DatasetItem, Polygon, RleMask
 from datumaro.components.project import Dataset
 from sklearn.model_selection import KFold
 
@@ -41,6 +42,7 @@ def binary_mask_to_polygon(binary_mask):
         polygons.append(contour.flatten())
 
     if len(polygons) > 1:
+        warnings.warn('Multiple polygons detected, picking the largest')
         return polygons[np.argmax(areas)]
     return polygons[0]
 
@@ -176,13 +178,13 @@ class HuBMAPVasculatureDataset:
                         dsitems.append(dsitem)
         return dsitems
 
-    def export(self, dsitems, export_path):
+    def export(self, dsitems, export_path, save_media=False):
         dataset = Dataset.from_iterable(dsitems, categories=self.labels)
         dataset.export(
             f'{export_path}',
             'coco',
             default_image_ext='.tif',
-            save_media=True)
+            save_media=save_media)
 
     def _get_unannotated_images(self):
         image_list = []
@@ -223,9 +225,9 @@ class HuBMAPVasculatureDataset:
                 if score >= score_thr and mask.sum() > 0:
                     # NOTE: add dilation to make the mask larger
                     mask = mask.astype(np.uint8)
-                    kernel = np.ones(shape=(3, 3), dtype=np.uint8)
-                    bitmask = cv2.dilate(mask, kernel, 3)
-                    bitmask = bitmask.astype(bool)
+                    # kernel = np.ones(shape=(3, 3), dtype=np.uint8)
+                    # bitmask = cv2.dilate(mask, kernel, 3)
+                    bitmask = mask.astype(bool)
                     polygon = binary_mask_to_polygon(bitmask)
                     polygon = Polygon(
                         points=np.array(polygon).flatten(),
@@ -251,27 +253,26 @@ if __name__ == '__main__':
         data_root='/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature'
     )
 
-    dsitems = dataset.strategy_2()
-    dataset.export(
-        dsitems,
-        export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s2-cls_1')
+    # dsitems = dataset.strategy_2()
+    # dataset.export(
+    #     dsitems,
+    #     export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s2-cls_1')
 
     # dsitems = dataset.strategy_5()
     # dataset.export(
     #     dsitems,
     #     export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s5-cls_2')
 
-    # dsitems = dataset.generate_pseudo_labeling(
-    #     config=
-    #     'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_album_simple_aug/solov2_x101_dcn_fpn_hubmap_s5_aug.py',
-    #     ckpt=
-    #     'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_album_simple_aug/best_segm_mAP_epoch_15.pth',
-    #     iou_thr=0.6,
-    #     nms_score_thr=0.5,
-    #     max_num=1000,
-    #     score_thr=0.5,
-    # )
-    # dataset.export(
-    #     dsitems,
-    #     export_path=
-    #     '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-pseudo-labeling-50')
+    dsitems = dataset.generate_pseudo_labeling(
+        config='work_dirs/kaggle-rabbit-ResNet101/custom_resnet101.py',
+        ckpt='work_dirs/kaggle-rabbit-ResNet101/mmdet2x.pth',
+        iou_thr=0.5,
+        nms_score_thr=0.5,
+        max_num=500,
+        score_thr=0.9,
+    )
+    dataset.export(
+        dsitems,
+        export_path=
+        '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-pseudo-labeling-90',
+        save_media=False)

@@ -217,9 +217,7 @@ optimizer = dict(
     weight_decay=0.05,
     eps=1e-08,
     betas=(0.9, 0.999),
-    paramwise_cfg=dict(
-        custom_keys=custom_keys,
-        norm_decay_mult=0.0))
+    paramwise_cfg=dict(custom_keys=custom_keys, norm_decay_mult=0.0))
 optimizer_config = dict(grad_clip=dict(max_norm=0.01, norm_type=2))
 lr_config = dict(
     policy='ReduceLROnPlateau',
@@ -233,15 +231,12 @@ lr_config = dict(
     warmup_ratio=0.3333333333333333)
 runner = dict(type='EpochBasedRunnerWithCancel', max_epochs=100)
 
-
 evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP')
 checkpoint_config = dict(interval=10)
 log_config = dict(
     interval=50,
-    hooks=[
-        dict(type='TextLoggerHook'),
-        dict(type='TensorboardLoggerHook')
-    ])
+    hooks=[dict(type='TextLoggerHook'),
+           dict(type='TensorboardLoggerHook')])
 
 custom_hooks = [
     dict(type='NumClassCheckHook'),
