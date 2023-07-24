@@ -4,7 +4,7 @@ _base_ = [
 ]
 
 model = dict(
-    backbone=dict(norm_cfg=dict(type='SyncBN', requires_grad=True)),
+    backbone=dict(norm_cfg=dict(type='BN', requires_grad=True)),
     roi_head=dict(bbox_head=dict(num_classes=1)))
 
 runner = dict(type='EpochBasedRunnerWithCancel', max_epochs=100)

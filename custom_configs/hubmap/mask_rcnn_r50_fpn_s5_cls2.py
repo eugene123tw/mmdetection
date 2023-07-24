@@ -1,9 +1,16 @@
 _base_ = [
-    '../_base_/datasets/hubmap_strategy5_aug_w_pseudo_labels.py',
+    '../_base_/datasets/hubmap_strategy5_cls2.py',
     './mask_rcnn_r50_fpn.py',
 ]
 
+model = dict(
+    backbone=dict(norm_cfg=dict(type='SyncBN', requires_grad=True)),
+    roi_head=dict(bbox_head=dict(num_classes=2)))
+
 runner = dict(type='EpochBasedRunnerWithCancel', max_epochs=100)
+
+optimizer_config = dict(
+    _delete_=True, grad_clip=dict(max_norm=35, norm_type=2))
 
 lr_config = dict(
     _delete_=True,
