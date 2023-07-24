@@ -1,3 +1,5 @@
+_base_ = ['../_base_/datasets/vitens_coliform.py']
+
 model = dict(
     type='SOLOv2',
     backbone=dict(
@@ -6,11 +8,7 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='SyncBN', requires_grad=False),
-        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet101'),
-        style='pytorch',
-        dcn=dict(type='DCNv2', deformable_groups=1, fallback_on_stride=False),
-        stage_with_dcn=(False, True, True, True)),
+        style='pytorch'),
     neck=dict(
         type='FPN',
         in_channels=[256, 512, 1024, 2048],
@@ -34,17 +32,14 @@ model = dict(
             end_level=3,
             out_channels=256,
             mask_stride=4,
-            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True),
-            conv_cfg=dict(type='DCNv2')),
+            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True)),
         loss_mask=dict(type='DiceLoss', use_sigmoid=True, loss_weight=3.0),
         loss_cls=dict(
             type='FocalLoss',
             use_sigmoid=True,
             gamma=2.0,
             alpha=0.25,
-            loss_weight=1.0),
-        dcn_cfg=dict(type='DCNv2'),
-        dcn_apply_to_all_conv=True),
+            loss_weight=1.0)),
     test_cfg=dict(
         nms_pre=500,
         score_thr=0.1,
@@ -72,6 +67,6 @@ log_config = dict(
 custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = 'https://download.openmmlab.com/mmdetection/v2.0/solov2/solov2_r101_dcn_fpn_3x_coco/solov2_r101_dcn_fpn_3x_coco_20220513_214734-16c966cb.pth'
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/solov2/solov2_r101_fpn_3x_coco/solov2_r101_fpn_3x_coco_20220511_095119-c559a076.pth'
 resume_from = None
 workflow = [('train', 1)]
