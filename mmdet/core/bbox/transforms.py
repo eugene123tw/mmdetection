@@ -33,7 +33,10 @@ def bbox_flip(bboxes, img_shape, direction='horizontal'):
     """
     assert bboxes.shape[-1] % 4 == 0
     assert direction in ['horizontal', 'vertical', 'diagonal']
-    flipped = bboxes.clone()
+    if isinstance(bboxes, np.ndarray):
+        flipped = np.copy(bboxes)
+    else:
+        flipped = bboxes.clone()
     if direction == 'horizontal':
         flipped[..., 0::4] = img_shape[1] - bboxes[..., 2::4]
         flipped[..., 2::4] = img_shape[1] - bboxes[..., 0::4]
