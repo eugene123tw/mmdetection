@@ -47,6 +47,8 @@ from .yolact import YOLACT
 from .yolo import YOLOV3
 from .yolof import YOLOF
 from .yolox import YOLOX
+from .custom_mask_rcnn import CustomMaskRCNN
+
 
 __all__ = [
     'ATSS', 'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',
@@ -58,5 +60,5 @@ __all__ = [
     'SOLOv2', 'DeformableDETR', 'AutoAssign', 'YOLOF', 'CenterNet', 'YOLOX',
     'TwoStagePanopticSegmentor', 'PanopticFPN', 'QueryInst', 'LAD', 'TOOD',
     'MaskFormer', 'DDOD', 'Mask2Former', 'DeepMAC', 'TiledSOLO',
-    'TwoStageTileRCNN', 'SingleStageTileRCNN'
+    'TwoStageTileRCNN', 'SingleStageTileRCNN', 'CustomMaskRCNN'
 ]
