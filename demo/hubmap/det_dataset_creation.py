@@ -92,6 +92,33 @@ class HuBMAPVasculatureDataset:
                     attributes=attributes)
         return dsitem_dict
 
+    def strategy_0(self, export_path, n_folds=5, random_state=0):
+        """All random split."""
+        dsitems = []
+        for index, row in self.df.iterrows():
+            if self.dsitem_dict.get(row['id']) is not None:
+                dsitem = self.dsitem_dict[row['id']]
+                if row['dataset'] == 1 or row['dataset'] == 2:
+                    dsitems.append(dsitem)
+
+        kf = KFold(n_splits=n_folds, shuffle=True, random_state=random_state)
+        for fold, (train_indices,
+                   val_indices) in enumerate(kf.split(range(len(dsitems)))):
+            for i in train_indices:
+                dsitems[i].subset = 'train'
+            for i in val_indices:
+                dsitems[i].subset = 'val'
+            if export_path is not None:
+                dataset = Dataset.from_iterable(
+                    dsitems, categories=self.labels)
+                dataset.export(
+                    f'{export_path}//fold_{fold}',
+                    'coco',
+                    default_image_ext='.tif',
+                    save_media=False)
+        return dsitems
+
+
     def strategy_1(self):
         """Train on Dataset 1, test on Dataset 2."""
         dsitems = []
@@ -253,6 +280,12 @@ if __name__ == '__main__':
         data_root='/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature'
     )
 
+    dataset.strategy_0(
+        export_path="/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature/anno",
+        n_folds=5,
+        random_state=0,
+    )
+
     # dsitems = dataset.strategy_2()
     # dataset.export(
     #     dsitems,
@@ -263,16 +296,16 @@ if __name__ == '__main__':
     #     dsitems,
     #     export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s5-cls_2')
 
-    dsitems = dataset.generate_pseudo_labeling(
-        config='work_dirs/kaggle-rabbit-ResNet101/custom_resnet101.py',
-        ckpt='work_dirs/kaggle-rabbit-ResNet101/mmdet2x.pth',
-        iou_thr=0.5,
-        nms_score_thr=0.5,
-        max_num=500,
-        score_thr=0.9,
-    )
-    dataset.export(
-        dsitems,
-        export_path=
-        '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-pseudo-labeling-90',
-        save_media=False)
+    # dsitems = dataset.generate_pseudo_labeling(
+    #     config='work_dirs/kaggle-rabbit-ResNet101/custom_resnet101.py',
+    #     ckpt='work_dirs/kaggle-rabbit-ResNet101/mmdet2x.pth',
+    #     iou_thr=0.5,
+    #     nms_score_thr=0.5,
+    #     max_num=500,
+    #     score_thr=0.9,
+    # )
+    # dataset.export(
+    #     dsitems,
+    #     export_path=
+    #     '/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-pseudo-labeling-90',
+    #     save_media=False)
