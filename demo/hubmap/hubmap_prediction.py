@@ -207,14 +207,6 @@ class HubMAPTest:
             tta_pipeline = cfg.data.test.pipeline[1]
             tta_pipeline.flip = True
             tta_pipeline.flip_direction = ['horizontal', 'vertical']
-            # NOTE: I didn't find image scale aug very useful
-            # img_scale_list = []
-            # set img_scale to 512 as the original image is 512
-            # base_img_scale = 512
-            # for scale_factor in [1., 1.25, 1.5, 1.75, 2.]:
-            #     img_scale_list.append((int(base_img_scale * scale_factor),
-            #                            int(base_img_scale * scale_factor)))
-            # tta_pipeline.img_scale = img_scale_list
         dataset = build_dataset(cfg.data.test)
         data_loader = build_dataloader(dataset, **test_loader_cfg)
 
@@ -271,15 +263,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config',
         type=str,
-        default=
-        'work_dirs/mask2former_swin-s-p4-w7-224_lsj_s5_cls1/mask2former_swin-s-p4-w7-224_lsj_s5_cls1.py'
-    )
+        default='work_dirs/kaggle-rabbit-ResNet101/custom_resnet101.py')
     parser.add_argument(
         '--ckpt',
         type=str,
-        default=
-        'work_dirs/mask2former_swin-s-p4-w7-224_lsj_s5_cls1/best_segm_mAP_epoch_50.pth'
-    )
+        default='work_dirs/kaggle-rabbit-ResNet101/mmdet2x.pth')
     # parser.add_argument('--image_root', type=str, default='')
     parser.add_argument(
         '--image-root',
@@ -291,10 +279,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     hubmap = HubMAPTest(args.config, args.ckpt, args.image_root,
                         args.original_test_root)
-    # image_ids, prediction_strings, heights, widths, results = hubmap.predict_tta(
-    #     dump=True)
-    image_ids, prediction_strings, heights, widths, results = hubmap.predict(
-        dump=False)
+    image_ids, prediction_strings, heights, widths, results = hubmap.predict_tta(
+        dump=True)
+    # image_ids, prediction_strings, heights, widths, results = hubmap.predict(
+    #     dump=False)
     submission = pd.DataFrame()
     submission['id'] = image_ids
     submission['height'] = heights
@@ -304,8 +292,8 @@ if __name__ == '__main__':
     submission.to_csv('submission.csv')
     print(submission)
 
-    # import pycocotools.mask as maskUtils
     # import matplotlib.pyplot as plt
+    # import pycocotools.mask as maskUtils
     # bboxes, masks = results[0]
     # plt.imshow(maskUtils.decode(masks[0][0]))
     # plt.show()

@@ -118,7 +118,6 @@ class HuBMAPVasculatureDataset:
                     save_media=False)
         return dsitems
 
-
     def strategy_1(self):
         """Train on Dataset 1, test on Dataset 2."""
         dsitems = []
@@ -281,7 +280,8 @@ if __name__ == '__main__':
     )
 
     dataset.strategy_0(
-        export_path="/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature/anno",
+        export_path=
+        '/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature/anno',
         n_folds=5,
         random_state=0,
     )
