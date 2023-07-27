@@ -2,6 +2,7 @@
 import torch
 import torch.nn.functional as F
 
+from mmdet.core import mask_matrix_nms
 from mmdet.core.evaluation.panoptic_utils import INSTANCE_OFFSET
 from mmdet.core.mask import mask2bbox
 from mmdet.models.builder import HEADS
@@ -156,10 +157,26 @@ class MaskFormerFusionHead(BasePanopticFusionHead):
                                      mask_pred_binary.flatten(1).sum(1) + 1e-6)
         det_scores = scores_per_image * mask_scores_per_image
         mask_pred_binary = mask_pred_binary.bool()
-        bboxes = mask2bbox(mask_pred_binary)
-        bboxes = torch.cat([bboxes, det_scores[:, None]], dim=-1)
 
-        return labels_per_image, bboxes, mask_pred_binary
+        score_thr = self.test_cfg.mask_matrix_test_cfg.score_thr
+        keep = det_scores > score_thr
+        det_scores = det_scores[keep]
+        labels_per_image = labels_per_image[keep]
+        mask_pred_binary = mask_pred_binary[keep]
+        mask_area = mask_pred_binary.sum((1, 2)).float()
+
+        scores, labels, masks, keep_inds = mask_matrix_nms(
+            mask_pred_binary,
+            labels_per_image,
+            det_scores,
+            filter_thr=self.test_cfg.mask_matrix_test_cfg.filter_thr,
+            nms_pre=self.test_cfg.mask_matrix_test_cfg.nms_pre,
+            max_num=self.test_cfg.mask_matrix_test_cfg.max_per_img,
+            mask_area=mask_area)
+        bboxes = mask2bbox(masks)
+        bboxes = torch.cat([bboxes, scores[:, None]], dim=1)
+
+        return labels, bboxes, masks
 
     def simple_test(self,
                     mask_cls_results,

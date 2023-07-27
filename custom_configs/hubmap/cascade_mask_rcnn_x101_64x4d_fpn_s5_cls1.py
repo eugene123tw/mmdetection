@@ -1,6 +1,4 @@
-_base_ = [
-    '../_base_/datasets/hubmap_strategy5_cls1.py'
-]
+_base_ = ['../_base_/datasets/hubmap_strategy5_cls1.py']
 
 # NOTE: mask size 28 -> 32
 
@@ -212,11 +210,10 @@ lr_config = dict(
     step=[16, 19])
 runner = dict(type='EpochBasedRunner', max_epochs=20)
 checkpoint_config = dict(interval=12)
-log_config = dict(interval=50, hooks=[
+log_config = dict(
+    interval=50, hooks=[
         dict(type='TextLoggerHook'),
-
-    ]
-)
+    ])
 custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'

@@ -5,7 +5,7 @@ _base_ = [
 
 model = dict(mask_head=dict(num_classes=1))
 
-data = dict(samples_per_gpu=4)
+data = dict(samples_per_gpu=2)
 
 lr_config = dict(
     policy='step',

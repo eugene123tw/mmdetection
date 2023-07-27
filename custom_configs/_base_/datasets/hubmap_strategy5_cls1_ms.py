@@ -16,7 +16,10 @@ train_pipeline = [
         img_scale=[(512, 512), (1344, 1344)],
         multiscale_mode='range',
         keep_ratio=True),
-    dict(type='RandomFlip', flip_ratio=0.5, direction=['horizontal', 'vertical']),
+    dict(
+        type='RandomFlip',
+        flip_ratio=0.5,
+        direction=['horizontal', 'vertical']),
     dict(type='Pad', size_divisor=32),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='DefaultFormatBundle'),
