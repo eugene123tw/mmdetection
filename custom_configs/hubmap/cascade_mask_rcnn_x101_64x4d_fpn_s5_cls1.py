@@ -1,6 +1,8 @@
 _base_ = [
-    '../_base_/datasets/hubmap_strategy5_cls1.py',
+    '../_base_/datasets/hubmap_strategy5_cls1.py'
 ]
+
+# NOTE: mask size 28 -> 32
 
 model = dict(
     type='CascadeRCNN',
@@ -10,11 +12,9 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='BN', requires_grad=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         norm_eval=True,
         style='pytorch',
-        init_cfg=dict(
-            type='Pretrained', checkpoint='open-mmlab://resnext101_64x4d'),
         groups=64,
         base_width=4),
     neck=dict(
@@ -128,7 +128,7 @@ model = dict(
                 pos_fraction=0.5,
                 neg_pos_ub=-1,
                 add_gt_as_proposals=False),
-            allowed_border=0,
+            allowed_border=-1,
             pos_weight=-1,
             debug=False),
         rpn_proposal=dict(
@@ -151,7 +151,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
-                mask_size=28,
+                mask_size=32,
                 pos_weight=-1,
                 debug=False),
             dict(
@@ -168,7 +168,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
-                mask_size=28,
+                mask_size=32,
                 pos_weight=-1,
                 debug=False),
             dict(
@@ -185,7 +185,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
-                mask_size=28,
+                mask_size=32,
                 pos_weight=-1,
                 debug=False)
         ]),
@@ -197,49 +197,30 @@ model = dict(
             min_bbox_size=0),
         rcnn=dict(
             score_thr=0.05,
-            nms=dict(type='nms', iou_threshold=0.5),
+            nms=dict(type='nms', iou_threshold=0.6),
             max_per_img=100,
             mask_thr_binary=0.5)))
 
-data = dict(samples_per_gpu=4)
-
-runner = dict(type='EpochBasedRunnerWithCancel', max_epochs=100)
-
 evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP')
 optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
-optimizer_config = dict(grad_clip=None)
-
+optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(
-    policy='ReduceLROnPlateau',
-    metric='segm_mAP',
-    patience=5,
-    iteration_patience=0,
-    interval=1,
-    min_lr=1e-06,
+    policy='step',
     warmup='linear',
-    warmup_iters=200,
-    warmup_ratio=0.3333333333333333)
-
-custom_hooks = [
-    dict(
-        type='EarlyStoppingHook',
-        patience=10,
-        iteration_patience=0,
-        metric='segm_mAP',
-        interval=1,
-        priority=75)
-]
-
+    warmup_iters=500,
+    warmup_ratio=0.001,
+    step=[16, 19])
+runner = dict(type='EpochBasedRunner', max_epochs=20)
 checkpoint_config = dict(interval=12)
-log_config = dict(
-    interval=50,
-    hooks=[dict(type='TextLoggerHook'),
-           dict(type='TensorboardLoggerHook')])
+log_config = dict(interval=50, hooks=[
+        dict(type='TextLoggerHook'),
 
+    ]
+)
+custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = 'https://download.openmmlab.com/mmdetection/v2.0/cascade_rcnn/cascade_mask_rcnn_x101_64x4d_fpn_mstrain_3x_coco/cascade_mask_rcnn_x101_64x4d_fpn_mstrain_3x_coco_20210719_210311-d3e64ba0.pth'
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/cascade_rcnn/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco_20200512_161033-bdb5126a.pth'
 resume_from = None
 workflow = [('train', 1)]
 auto_resume = False
-gpu_ids = [0]
