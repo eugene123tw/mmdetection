@@ -1,6 +1,4 @@
-_base_ = ['../_base_/datasets/hubmap_strategy5_cls1.py']
-
-# NOTE: mask size 28 -> 32
+_base_ = ['../_base_/datasets/hubmap_strategy5_cls1_1344x1344.py']
 
 model = dict(
     type='CascadeRCNN',
@@ -10,7 +8,7 @@ model = dict(
         num_stages=4,
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=True,
         style='pytorch',
         groups=64,
@@ -126,7 +124,7 @@ model = dict(
                 pos_fraction=0.5,
                 neg_pos_ub=-1,
                 add_gt_as_proposals=False),
-            allowed_border=-1,
+            allowed_border=0,
             pos_weight=-1,
             debug=False),
         rpn_proposal=dict(
@@ -149,7 +147,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
-                mask_size=32,
+                mask_size=28,
                 pos_weight=-1,
                 debug=False),
             dict(
@@ -166,7 +164,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
-                mask_size=32,
+                mask_size=28,
                 pos_weight=-1,
                 debug=False),
             dict(
@@ -183,7 +181,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
-                mask_size=32,
+                mask_size=28,
                 pos_weight=-1,
                 debug=False)
         ]),
@@ -194,13 +192,14 @@ model = dict(
             nms=dict(type='nms', iou_threshold=0.7),
             min_bbox_size=0),
         rcnn=dict(
-            score_thr=0.05,
+            score_thr=0.01,
             nms=dict(type='nms', iou_threshold=0.6),
             max_per_img=100,
-            mask_thr_binary=0.5)))
+            mask_thr_binary=0.5))
+)
 
 evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP')
-optimizer = dict(type='SGD', lr=0.02, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=dict(max_norm=35, norm_type=2))
 lr_config = dict(
     policy='step',
@@ -209,11 +208,12 @@ lr_config = dict(
     warmup_ratio=0.001,
     step=[16, 19])
 runner = dict(type='EpochBasedRunner', max_epochs=20)
-checkpoint_config = dict(interval=12)
+checkpoint_config = dict(interval=10)
 log_config = dict(
-    interval=50, hooks=[
-        dict(type='TextLoggerHook'),
-    ])
+    interval=50,
+    hooks=[dict(type='TextLoggerHook'),
+           dict(type='TensorboardLoggerHook')]
+)
 custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
