@@ -211,7 +211,8 @@ class HuBMAPVasculatureDataset:
             if self.dsitem_dict.get(row['id']) is not None:
                 dsitem = self.dsitem_dict[row['id']]
 
-                if row['source_wsi'] == 1 or row['source_wsi'] == 2 or row['source_wsi'] == 3:
+                if row['source_wsi'] == 1 or row['source_wsi'] == 2 or row[
+                        'source_wsi'] == 3:
                     dsitem.subset = 'train'
                     dsitems.append(dsitem)
 
@@ -227,11 +228,46 @@ class HuBMAPVasculatureDataset:
             if self.dsitem_dict.get(row['id']) is not None:
                 dsitem = self.dsitem_dict[row['id']]
 
-                if row['source_wsi'] == 1 or row['source_wsi'] == 2 or row['source_wsi'] == 4:
+                if row['source_wsi'] == 1 or row['source_wsi'] == 2 or row[
+                        'source_wsi'] == 4:
                     dsitem.subset = 'train'
                     dsitems.append(dsitem)
 
                 if row['source_wsi'] == 3:
+                    dsitem.subset = 'val'
+                    dsitems.append(dsitem)
+        return dsitems
+
+    def strategy_8(self):
+        """Train on wsi 2+3+4 , test on wsi 1."""
+        dsitems = []
+        for index, row in self.df.iterrows():
+            if self.dsitem_dict.get(row['id']) is not None:
+                dsitem = self.dsitem_dict[row['id']]
+
+                if row['source_wsi'] == 2 or row['source_wsi'] == 3 or row[
+                        'source_wsi'] == 4:
+                    dsitem.subset = 'train'
+                    dsitems.append(dsitem)
+
+                if row['source_wsi'] == 1:
+                    dsitem.subset = 'val'
+                    dsitems.append(dsitem)
+        return dsitems
+
+    def strategy_9(self):
+        """Train on wsi 1+3+4 , test on wsi 2."""
+        dsitems = []
+        for index, row in self.df.iterrows():
+            if self.dsitem_dict.get(row['id']) is not None:
+                dsitem = self.dsitem_dict[row['id']]
+
+                if row['source_wsi'] == 1 or row['source_wsi'] == 3 or row[
+                        'source_wsi'] == 4:
+                    dsitem.subset = 'train'
+                    dsitems.append(dsitem)
+
+                if row['source_wsi'] == 2:
                     dsitem.subset = 'val'
                     dsitems.append(dsitem)
         return dsitems
@@ -311,15 +347,15 @@ if __name__ == '__main__':
         data_root='/home/yuchunli/_DATASET/hubmap-hacking-the-human-vasculature'
     )
 
-    dsitems = dataset.strategy_6()
+    dsitems = dataset.strategy_8()
     dataset.export(
         dsitems,
-        export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s6-cls_1')
+        export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s8-cls_1')
 
-    dsitems = dataset.strategy_7()
+    dsitems = dataset.strategy_9()
     dataset.export(
         dsitems,
-        export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s7-cls_1')
+        export_path='/home/yuchunli/_DATASET/HuBMAP-vasculature-coco-s9-cls_1')
 
     # dsitems = dataset.strategy_5()
     # dataset.export(

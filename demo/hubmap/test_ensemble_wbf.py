@@ -357,7 +357,7 @@ def hubmap_ensemble(model_list,
             results = inference_detector(detector, str(fname))
             bboxes, masks = results
             masks = np.stack(masks[LABLE_INDEX])
-            boxes = bboxes[LABLE_INDEX][:, :4] / 512.0
+            boxes = np.round(bboxes[LABLE_INDEX][:, :4] / 512.0, 6)
             scores = bboxes[LABLE_INDEX][:, 4]
             num_pred = len(bboxes[LABLE_INDEX])
 
@@ -442,15 +442,21 @@ if __name__ == '__main__':
     model_list = [
         {
             'config':
-            'work_dirs/solov2_x101_dcn_fpn_hubmap_s6_cls1/solov2_x101_dcn_fpn_hubmap_s6_cls1.py',
+            'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_cls1/solov2_x101_dcn_fpn_hubmap_s5_cls1.py',
             'ckpt':
-            'work_dirs/solov2_x101_dcn_fpn_hubmap_s6_cls1/best_segm_mAP_epoch_9.pth'
+            'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_cls1/best_segm_mAP_epoch_8.pth'
         },
         {
             'config':
-            'work_dirs/solov2_x101_dcn_fpn_hubmap_s7_cls1/solov2_x101_dcn_fpn_hubmap_s7_cls1.py',
+            'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_cls1_1344x1344/solov2_x101_dcn_fpn_hubmap_s5_cls1_1344x1344.py',
             'ckpt':
-            'work_dirs/solov2_x101_dcn_fpn_hubmap_s7_cls1/best_segm_mAP_epoch_7.pth'
+            'work_dirs/solov2_x101_dcn_fpn_hubmap_s5_cls1_1344x1344/best_segm_mAP_epoch_16.pth'
+        },
+        {
+            'config':
+            'work_dirs/kaggle-rabbit-ResNet101/custom_resnet101.py',
+            'ckpt':
+            'work_dirs/kaggle-rabbit-ResNet101/mmdet2x.pth'
         },
     ]
 

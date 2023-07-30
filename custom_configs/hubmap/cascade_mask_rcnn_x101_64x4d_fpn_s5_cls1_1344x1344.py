@@ -195,8 +195,7 @@ model = dict(
             score_thr=0.01,
             nms=dict(type='nms', iou_threshold=0.6),
             max_per_img=100,
-            mask_thr_binary=0.5))
-)
+            mask_thr_binary=0.5)))
 
 evaluation = dict(metric=['bbox', 'segm'], save_best='segm_mAP')
 optimizer = dict(type='SGD', lr=0.001, momentum=0.9, weight_decay=0.0001)
@@ -212,8 +211,7 @@ checkpoint_config = dict(interval=10)
 log_config = dict(
     interval=50,
     hooks=[dict(type='TextLoggerHook'),
-           dict(type='TensorboardLoggerHook')]
-)
+           dict(type='TensorboardLoggerHook')])
 custom_hooks = []
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
