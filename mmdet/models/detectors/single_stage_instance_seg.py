@@ -6,6 +6,7 @@ import mmcv
 import numpy as np
 import torch
 
+from mmdet.core import mask2bbox
 from mmdet.core.visualization.image import imshow_det_bboxes
 from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
@@ -231,7 +232,7 @@ class SingleStageInstanceSegmentor(BaseDetector):
 
         if 'bboxes' not in results:
             # create dummy bbox results to store the scores
-            results.bboxes = results.scores.new_zeros(len(results), 4)
+            results.bboxes = mask2bbox(results.masks)
 
         det_bboxes = torch.cat([results.bboxes, results.scores[:, None]],
                                dim=-1)
