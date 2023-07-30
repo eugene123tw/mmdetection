@@ -187,5 +187,4 @@ if __name__ == '__main__':
     submission['width'] = widths
     submission['prediction_string'] = prediction_strings
     submission = submission.set_index('id')
-    # submission.to_csv("/kaggle/working/mmdetection/submission.csv")
-    # submission.to_csv("submission.csv")
+    submission.to_csv('submission.csv')
